@@ -89,10 +89,9 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
   <div class="card" id="card-upload">
     <div class="card-title">📄 上传报告</div>
     <div class="card-desc">支持 .docx / .pdf / .txt 或直接粘贴文字，AI 自动识别结构</div>
-    <div class="api-bar">
+    <div class="api-bar" style="display:none">
       <span class="dot" id="api-dot"></span>
-      <span>后端地址：</span>
-      <input id="api-url" value="https://reportviz-api-production.up.railway.app" placeholder="http://localhost:8000">
+      <input id="api-url" value="https://reportviz-api-production.up.railway.app">
       <button class="btn btn-ghost btn-sm" id="btn-check" style="width:auto;margin:0">检测连接</button>
     </div>
     <div class="tabs" id="tabs">
