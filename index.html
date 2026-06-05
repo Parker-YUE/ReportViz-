@@ -394,8 +394,8 @@ function buildHTML(data,c){
 
 function buildRadar(dims,c){
   var n=dims.length;if(n<3)return'';
-  var svgSize=200;
-  var cx=svgSize/2,cy=svgSize/2,r=80;
+  var svgSize=260;
+  var cx=svgSize/2,cy=svgSize/2,r=90;
   var angles=[];for(var i=0;i<n;i++)angles.push(Math.PI/2+2*Math.PI*i/n);
   function pts(s2){var p='';for(var pi=0;pi<angles.length;pi++){if(pi>0)p+=' ';p+=Math.round(cx+s2*Math.cos(angles[pi]))+','+Math.round(cy-s2*Math.sin(angles[pi]));}return p;}
   var dataP='';for(var dp=0;dp<dims.length;dp++){var scd=dims[dp].score;if(dp>0)dataP+=' ';dataP+=Math.round(cx+r*(scd/100)*Math.cos(angles[dp]))+','+Math.round(cy-r*(scd/100)*Math.sin(angles[dp]));}
@@ -414,7 +414,7 @@ function buildRadar(dims,c){
     var a2=angles[li];
     var cosA=Math.cos(a2);
     var sinA=Math.sin(a2);
-    var lbl='<div style="font-size:13px;font-weight:800;color:'+c.text+'">'+dims[li].score+'</div><div style="font-size:10px;font-weight:600;color:#475569">'+dims[li].name+'</div>';
+    var lbl='<div style="font-size:14px;font-weight:800;color:'+c.accent+'">'+dims[li].score+'</div><div style="font-size:11px;font-weight:600;color:'+c.text+'">'+dims[li].name+'</div>';
     if(sinA>0.5&&Math.abs(cosA)<0.5){topLabel=lbl;}
     else if(cosA>0.3&&sinA>0){rightLabel=lbl;}
     else if(cosA>0.3&&sinA<=0){brLabel=lbl;}
@@ -425,13 +425,13 @@ function buildRadar(dims,c){
     }
   }
   return '<div style="margin-bottom:8px">'
-    +'<div style="text-align:center;margin-bottom:2px">'+topLabel+'</div>'
-    +'<div style="display:flex;align-items:center;justify-content:center;gap:0">'
-    +'<div style="text-align:right;min-width:90px;padding-right:8px">'+leftLabel+'</div>'
+    +'<div style="text-align:center;margin-bottom:0px">'+topLabel+'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:center">'
+    +'<div style="text-align:right;min-width:80px;padding-right:4px">'+leftLabel+'</div>'
     +'<div style="flex-shrink:0">'+svg+'</div>'
-    +'<div style="text-align:left;min-width:90px;padding-left:8px">'+rightLabel+'</div>'
+    +'<div style="text-align:left;min-width:80px;padding-left:4px">'+rightLabel+'</div>'
     +'</div>'
-    +'<div style="display:flex;justify-content:center;gap:40px;margin-top:2px">'
+    +'<div style="display:flex;justify-content:center;gap:80px;margin-top:0px">'
     +'<div style="text-align:center">'+blLabel+'</div>'
     +'<div style="text-align:center">'+brLabel+'</div>'
     +'</div>'
