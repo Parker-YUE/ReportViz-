@@ -394,31 +394,41 @@ function buildHTML(data,c){
 
 function buildRadar(dims,c){
   var n=dims.length;if(n<3)return'';
-  var size=300;
-  var cx=size/2,cy=size/2,r=105;
+  var svgSize=200;
+  var cx=svgSize/2,cy=svgSize/2,r=80;
+  var containerSize=340;
+  var offset=(containerSize-svgSize)/2;
   var angles=[];for(var i=0;i<n;i++)angles.push(Math.PI/2+2*Math.PI*i/n);
   function pts(s2){var p='';for(var pi=0;pi<angles.length;pi++){if(pi>0)p+=' ';p+=Math.round(cx+s2*Math.cos(angles[pi]))+','+Math.round(cy-s2*Math.sin(angles[pi]));}return p;}
   var dataP='';for(var dp=0;dp<dims.length;dp++){var scd=dims[dp].score;if(dp>0)dataP+=' ';dataP+=Math.round(cx+r*(scd/100)*Math.cos(angles[dp]))+','+Math.round(cy-r*(scd/100)*Math.sin(angles[dp]));}
   var axes='';for(var ai=0;ai<n;ai++){axes+='<line x1="'+cx+'" y1="'+cy+'" x2="'+Math.round(cx+r*Math.cos(angles[ai]))+'" y2="'+Math.round(cy-r*Math.sin(angles[ai]))+'" stroke="#cbd5e1" stroke-width="0.5"></line>';}
   var dots='';for(var doi=0;doi<n;doi++){dots+='<circle cx="'+Math.round(cx+r*(dims[doi].score/100)*Math.cos(angles[doi]))+'" cy="'+Math.round(cy-r*(dims[doi].score/100)*Math.sin(angles[doi]))+'" r="3" fill="'+c.accent+'"></circle>';}
-  var labelHtml='';
+  var labelDivs='';
   for(var li=0;li<n;li++){
     var a2=angles[li];
-    var labelDist=r+18;
-    var lx=cx+labelDist*Math.cos(a2);
-    var ly=cy-labelDist*Math.sin(a2);
-    var anchor='middle';
-    if(Math.cos(a2)<-0.2)anchor='end';
-    if(Math.cos(a2)>0.2)anchor='start';
-    var yOff=0;
-    if(Math.sin(a2)>0.8)yOff=-6;
-    if(Math.sin(a2)<-0.8)yOff=8;
-    labelHtml+='<text x="'+Math.round(lx)+'" y="'+Math.round(ly-3+yOff)+'" text-anchor="'+anchor+'" font-size="13" font-weight="800" fill="'+c.text+'">'+dims[li].score+'</text>';
-    labelHtml+='<text x="'+Math.round(lx)+'" y="'+Math.round(ly+10+yOff)+'" text-anchor="'+anchor+'" font-size="10" font-weight="600" fill="#475569">'+dims[li].name+'</text>';
+    var labelDist=r+16;
+    var lx=offset+cx+labelDist*Math.cos(a2);
+    var ly=offset+cy-labelDist*Math.sin(a2);
+    var align='center';var translateX='-50%';var translateY='-50%';
+    if(Math.cos(a2)>0.3){align='left';translateX='0%';}
+    if(Math.cos(a2)<-0.3){align='right';translateX='-100%';}
+    if(Math.sin(a2)>0.7){translateY='-100%';}
+    if(Math.sin(a2)<-0.7){translateY='0%';}
+    labelDivs+='<div style="position:absolute;left:'+Math.round(lx)+'px;top:'+Math.round(ly)+'px;transform:translate('+translateX+','+translateY+');text-align:'+align+';white-space:nowrap">'
+      +'<div style="font-size:14px;font-weight:800;color:'+c.text+'">'+dims[li].score+'</div>'
+      +'<div style="font-size:10px;font-weight:600;color:#475569">'+dims[li].name+'</div>'
+      +'</div>';
   }
-  return '<div style="text-align:center;margin-bottom:8px"><svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'" xmlns="http://www.w3.org/2000/svg" style="display:inline-block"><polygon points="'+pts(r)+'" fill="none" stroke="#e2e8f0" stroke-width="1"></polygon><polygon points="'+pts(r*0.66)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.5"></polygon><polygon points="'+pts(r*0.33)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.3"></polygon>'+axes+'<polygon points="'+dataP+'" fill="'+c.accent+'" fill-opacity="0.15" stroke="'+c.accent+'" stroke-width="2" stroke-linejoin="round"></polygon>'+dots+labelHtml+'</svg></div>';
+  var svg='<svg width="'+svgSize+'" height="'+svgSize+'" viewBox="0 0 '+svgSize+' '+svgSize+'" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:'+offset+'px;top:'+offset+'px">'
+    +'<polygon points="'+pts(r)+'" fill="none" stroke="#e2e8f0" stroke-width="1"></polygon>'
+    +'<polygon points="'+pts(r*0.66)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.5"></polygon>'
+    +'<polygon points="'+pts(r*0.33)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.3"></polygon>'
+    +axes
+    +'<polygon points="'+dataP+'" fill="'+c.accent+'" fill-opacity="0.15" stroke="'+c.accent+'" stroke-width="2" stroke-linejoin="round"></polygon>'
+    +dots
+    +'</svg>';
+  return '<div style="text-align:center;margin-bottom:8px"><div style="position:relative;width:'+containerSize+'px;height:'+containerSize+'px;margin:0 auto">'+svg+labelDivs+'</div></div>';
 }
-
 function setStep(n2,cls,txt){var el=document.getElementById('s'+n2);el.className='ls'+(cls?' '+cls:'');el.textContent=txt}
 var toastTimer=null;
 function showToast(msg){toastEl.textContent=msg;toastEl.classList.add('show');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(function(){toastEl.classList.remove('show')},3500)}
