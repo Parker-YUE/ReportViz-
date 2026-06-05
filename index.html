@@ -396,30 +396,12 @@ function buildRadar(dims,c){
   var n=dims.length;if(n<3)return'';
   var svgSize=200;
   var cx=svgSize/2,cy=svgSize/2,r=80;
-  var containerSize=340;
-  var offset=(containerSize-svgSize)/2;
   var angles=[];for(var i=0;i<n;i++)angles.push(Math.PI/2+2*Math.PI*i/n);
   function pts(s2){var p='';for(var pi=0;pi<angles.length;pi++){if(pi>0)p+=' ';p+=Math.round(cx+s2*Math.cos(angles[pi]))+','+Math.round(cy-s2*Math.sin(angles[pi]));}return p;}
   var dataP='';for(var dp=0;dp<dims.length;dp++){var scd=dims[dp].score;if(dp>0)dataP+=' ';dataP+=Math.round(cx+r*(scd/100)*Math.cos(angles[dp]))+','+Math.round(cy-r*(scd/100)*Math.sin(angles[dp]));}
   var axes='';for(var ai=0;ai<n;ai++){axes+='<line x1="'+cx+'" y1="'+cy+'" x2="'+Math.round(cx+r*Math.cos(angles[ai]))+'" y2="'+Math.round(cy-r*Math.sin(angles[ai]))+'" stroke="#cbd5e1" stroke-width="0.5"></line>';}
   var dots='';for(var doi=0;doi<n;doi++){dots+='<circle cx="'+Math.round(cx+r*(dims[doi].score/100)*Math.cos(angles[doi]))+'" cy="'+Math.round(cy-r*(dims[doi].score/100)*Math.sin(angles[doi]))+'" r="3" fill="'+c.accent+'"></circle>';}
-  var labelDivs='';
-  for(var li=0;li<n;li++){
-    var a2=angles[li];
-    var labelDist=r+16;
-    var lx=offset+cx+labelDist*Math.cos(a2);
-    var ly=offset+cy-labelDist*Math.sin(a2);
-    var align='center';var translateX='-50%';var translateY='-50%';
-    if(Math.cos(a2)>0.3){align='left';translateX='0%';}
-    if(Math.cos(a2)<-0.3){align='right';translateX='-100%';}
-    if(Math.sin(a2)>0.7){translateY='-100%';}
-    if(Math.sin(a2)<-0.7){translateY='0%';}
-    labelDivs+='<div style="position:absolute;left:'+Math.round(lx)+'px;top:'+Math.round(ly)+'px;transform:translate('+translateX+','+translateY+');text-align:'+align+';white-space:nowrap">'
-      +'<div style="font-size:14px;font-weight:800;color:'+c.text+'">'+dims[li].score+'</div>'
-      +'<div style="font-size:10px;font-weight:600;color:#475569">'+dims[li].name+'</div>'
-      +'</div>';
-  }
-  var svg='<svg width="'+svgSize+'" height="'+svgSize+'" viewBox="0 0 '+svgSize+' '+svgSize+'" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:'+offset+'px;top:'+offset+'px">'
+  var svg='<svg width="'+svgSize+'" height="'+svgSize+'" viewBox="0 0 '+svgSize+' '+svgSize+'" xmlns="http://www.w3.org/2000/svg">'
     +'<polygon points="'+pts(r)+'" fill="none" stroke="#e2e8f0" stroke-width="1"></polygon>'
     +'<polygon points="'+pts(r*0.66)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.5"></polygon>'
     +'<polygon points="'+pts(r*0.33)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.3"></polygon>'
@@ -427,7 +409,33 @@ function buildRadar(dims,c){
     +'<polygon points="'+dataP+'" fill="'+c.accent+'" fill-opacity="0.15" stroke="'+c.accent+'" stroke-width="2" stroke-linejoin="round"></polygon>'
     +dots
     +'</svg>';
-  return '<div style="text-align:center;margin-bottom:8px"><div style="position:relative;width:'+containerSize+'px;height:'+containerSize+'px;margin:0 auto">'+svg+labelDivs+'</div></div>';
+  var topLabel='',leftLabel='',rightLabel='',blLabel='',brLabel='';
+  for(var li=0;li<n;li++){
+    var a2=angles[li];
+    var cosA=Math.cos(a2);
+    var sinA=Math.sin(a2);
+    var lbl='<div style="font-size:13px;font-weight:800;color:'+c.text+'">'+dims[li].score+'</div><div style="font-size:10px;font-weight:600;color:#475569">'+dims[li].name+'</div>';
+    if(sinA>0.5&&Math.abs(cosA)<0.5){topLabel=lbl;}
+    else if(cosA>0.3&&sinA>0){rightLabel=lbl;}
+    else if(cosA>0.3&&sinA<=0){brLabel=lbl;}
+    else if(cosA<-0.3&&sinA>0){leftLabel=lbl;}
+    else if(cosA<-0.3&&sinA<=0){blLabel=lbl;}
+    else if(sinA<-0.5){
+      if(cosA>=0)brLabel=lbl;else blLabel=lbl;
+    }
+  }
+  return '<div style="margin-bottom:8px">'
+    +'<div style="text-align:center;margin-bottom:2px">'+topLabel+'</div>'
+    +'<div style="display:flex;align-items:center;justify-content:center;gap:0">'
+    +'<div style="text-align:right;min-width:90px;padding-right:8px">'+leftLabel+'</div>'
+    +'<div style="flex-shrink:0">'+svg+'</div>'
+    +'<div style="text-align:left;min-width:90px;padding-left:8px">'+rightLabel+'</div>'
+    +'</div>'
+    +'<div style="display:flex;justify-content:center;gap:40px;margin-top:2px">'
+    +'<div style="text-align:center">'+blLabel+'</div>'
+    +'<div style="text-align:center">'+brLabel+'</div>'
+    +'</div>'
+    +'</div>';
 }
 function setStep(n2,cls,txt){var el=document.getElementById('s'+n2);el.className='ls'+(cls?' '+cls:'');el.textContent=txt}
 var toastTimer=null;
