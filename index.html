@@ -3,30 +3,30 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="format-detection" content="telephone=no">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>ReportViz - 报告转高清图片</title>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#e2e8f0;min-height:100vh}
+body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#e2e8f0;min-height:100vh;-webkit-tap-highlight-color:transparent}
 .container{max-width:960px;margin:0 auto;padding:0 28px}
 .nav{padding:16px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06)}
 .logo{font-size:20px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-status{font-size:10px;padding:3px 8px;border-radius:10px;background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.2)}
+.nav-status.offline{background:rgba(239,68,68,0.1);color:#ef4444;border-color:rgba(239,68,68,0.2)}
 .hero{text-align:center;padding:44px 28px 28px}
 .hero h1{font-size:34px;font-weight:900;letter-spacing:-1px;margin-bottom:8px;background:linear-gradient(180deg,#fff,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hero p{font-size:14px;color:#64748b;max-width:500px;margin:0 auto;line-height:1.7}
 .card{background:rgba(15,23,42,0.7);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:28px;margin-bottom:22px}
 .card-title{font-size:16px;font-weight:700;margin-bottom:4px}
 .card-desc{font-size:12px;color:#64748b;margin-bottom:18px}
-.api-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;margin-bottom:16px;font-size:11px;background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.15);color:#60a5fa;flex-wrap:wrap}
-.api-bar input{background:#1e293b;border:1px solid rgba(255,255,255,0.1);color:#e2e8f0;padding:5px 10px;border-radius:4px;font-size:11px;width:260px}
-.api-bar .dot{width:8px;height:8px;border-radius:50%;background:#ef4444}
-.api-bar .dot.ok{background:#10b981}
 .tabs{display:flex;background:rgba(30,41,59,0.6);border-radius:8px;padding:3px;margin-bottom:16px}
-.tab{flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;color:#64748b;border-radius:6px;cursor:pointer;transition:0.15s}
+.tab{flex:1;padding:8px;text-align:center;font-size:12px;font-weight:600;color:#64748b;border-radius:6px;cursor:pointer;transition:0.15s;-webkit-user-select:none;user-select:none}
 .tab.active{background:rgba(96,165,250,0.12);color:#60a5fa}
 .dropzone{border:2px dashed rgba(96,165,250,0.25);border-radius:12px;padding:36px 16px;text-align:center;cursor:pointer;transition:0.2s}
-.dropzone:hover{border-color:rgba(96,165,250,0.5);background:rgba(96,165,250,0.03)}
+.dropzone:hover,.dropzone:active{border-color:rgba(96,165,250,0.5);background:rgba(96,165,250,0.03)}
 .dz-icon{font-size:32px;margin-bottom:8px}
 .dz-text{font-size:13px;color:#94a3b8}
 .dz-hint{font-size:10px;color:#475569;margin-top:4px}
@@ -34,13 +34,13 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
 .fbadge.show{display:flex}
 .fbadge .fn{font-size:12px;color:#10b981;font-weight:600}
 .fbadge .fs{font-size:10px;color:#64748b}
-.fbadge .rm{margin-left:auto;cursor:pointer;color:#ef4444;font-size:14px}
-.textarea{width:100%;min-height:200px;background:rgba(15,23,42,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;font-size:12px;color:#e2e8f0;resize:vertical;font-family:inherit;line-height:1.8}
+.fbadge .rm{margin-left:auto;cursor:pointer;color:#ef4444;font-size:14px;padding:4px 8px}
+.textarea{width:100%;min-height:200px;background:rgba(15,23,42,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;font-size:14px;color:#e2e8f0;resize:vertical;font-family:inherit;line-height:1.8;-webkit-appearance:none}
 .textarea:focus{outline:none;border-color:rgba(96,165,250,0.3)}
 .textarea::placeholder{color:#334155}
-.btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:0.2s}
+.btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:0.2s;-webkit-appearance:none}
 .btn-primary{background:linear-gradient(135deg,#3b82f6,#7c3aed);color:#fff;margin-top:16px}
-.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 18px rgba(59,130,246,0.2)}
+.btn-primary:hover:not(:disabled),.btn-primary:active:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 18px rgba(59,130,246,0.2)}
 .btn-primary:disabled{opacity:0.4;cursor:not-allowed}
 .btn-success{background:linear-gradient(135deg,#059669,#10b981);color:#fff}
 .btn-ghost{background:rgba(255,255,255,0.04);color:#94a3b8;border:1px solid rgba(255,255,255,0.08)}
@@ -56,30 +56,32 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
 .theme-section{display:none}
 .theme-section.show{display:block}
 .theme-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
-.tcard{border:2px solid rgba(255,255,255,0.05);border-radius:10px;padding:14px;cursor:pointer;transition:0.2s;text-align:center;background:rgba(15,23,42,0.5)}
-.tcard:hover{border-color:rgba(255,255,255,0.12)}
+.tcard{border:2px solid rgba(255,255,255,0.05);border-radius:10px;padding:14px;cursor:pointer;transition:0.2s;text-align:center;background:rgba(15,23,42,0.5);-webkit-user-select:none;user-select:none}
+.tcard:hover,.tcard:active{border-color:rgba(255,255,255,0.12)}
 .tcard.sel{border-color:#60a5fa;background:rgba(96,165,250,0.04)}
 .tcard .em{font-size:24px;margin-bottom:6px}
 .tcard .nm{font-size:12px;font-weight:700}
 .tcard .ds{font-size:10px;color:#64748b}
 .preview-box{border:1px solid rgba(255,255,255,0.06);border-radius:10px;overflow:hidden}
-.preview-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06)}
+.preview-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06);flex-wrap:wrap;gap:8px}
 .preview-bar .lbl{font-size:12px;color:#94a3b8;font-weight:600}
 .preview-bar .acts{display:flex;gap:6px}
-.preview-body{padding:12px;max-height:600px;overflow-y:auto}
-#render-target{position:absolute;left:-9999px;top:0;width:1200px;z-index:-1;background:#f0f4f8}
+.preview-body{padding:12px;max-height:600px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#render-target{position:absolute;left:-9999px;top:0;width:1200px;z-index:-1;background:#f0f4f8;opacity:0}
 .overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:12px}
 .overlay.show{display:flex}
 .overlay p{color:#fff;font-size:13px}
-.toast{position:fixed;bottom:16px;right:16px;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 16px;font-size:12px;color:#e2e8f0;z-index:1000;opacity:0;transform:translateY(6px);transition:0.3s;pointer-events:none}
+.toast{position:fixed;bottom:16px;right:16px;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 16px;font-size:12px;color:#e2e8f0;z-index:1000;opacity:0;transform:translateY(6px);transition:0.3s;pointer-events:none;max-width:300px}
 .toast.show{opacity:1;transform:translateY(0)}
-@media(max-width:768px){.hero h1{font-size:24px}.container{padding:0 14px}.card{padding:20px}.theme-grid{grid-template-columns:1fr}.api-bar input{width:100%}}
+.error-banner{display:none;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:11px;color:#fca5a5;line-height:1.6}
+.error-banner.show{display:block}
+@media(max-width:768px){.hero h1{font-size:24px}.hero p{font-size:12px}.container{padding:0 14px}.card{padding:20px}.theme-grid{grid-template-columns:1fr}.preview-bar{flex-direction:column;align-items:flex-start}.preview-bar .acts{width:100%}.preview-bar .acts .btn-sm{flex:1;text-align:center}}
 </style>
 </head>
 <body>
 <nav class="nav">
   <div class="logo">ReportViz</div>
-  <span style="font-size:11px;color:#64748b">v3.0 · AI 智能解析</span>
+  <span class="nav-status offline" id="nav-status">● 连接中...</span>
 </nav>
 <section class="hero">
   <h1>报告秒变高清视觉图</h1>
@@ -89,11 +91,7 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
   <div class="card" id="card-upload">
     <div class="card-title">📄 上传报告</div>
     <div class="card-desc">支持 .docx / .pdf / .txt 或直接粘贴文字，AI 自动识别结构</div>
-    <div class="api-bar" style="display:none">
-      <span class="dot" id="api-dot"></span>
-      <input id="api-url" value="https://reportviz-api-production.up.railway.app">
-      <button class="btn btn-ghost btn-sm" id="btn-check" style="width:auto;margin:0">检测连接</button>
-    </div>
+    <div class="error-banner" id="error-banner">⚠️ 服务暂时不可用，请稍后再试。如持续无法使用，请联系管理员。</div>
     <div class="tabs" id="tabs">
       <div class="tab active" data-tab="file">📁 上传文件</div>
       <div class="tab" data-tab="text">✏️ 粘贴文字</div>
@@ -155,7 +153,8 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
 (function(){
 "use strict";
 
-var file=null,theme='blue',parsed=null;
+var API_URL="https://reportviz-api-production.up.railway.app";
+var file=null,theme='blue',parsed=null,apiReady=false;
 var C={
   blue:{bg:"linear-gradient(135deg,#0f2027 0%,#203a43 40%,#2c5364 100%)",accent:"#3b82f6",light:"#e0f2fe",text:"#0f2027"},
   green:{bg:"linear-gradient(135deg,#022c22 0%,#064e3b 40%,#065f46 100%)",accent:"#10b981",light:"#ecfdf5",text:"#064e3b"},
@@ -175,19 +174,24 @@ var renderTarget=document.getElementById('render-target');
 var overlayEl=document.getElementById('overlay');
 var overlayMsg=document.getElementById('overlay-msg');
 var toastEl=document.getElementById('toast');
+var navStatus=document.getElementById('nav-status');
+var errorBanner=document.getElementById('error-banner');
 
-function getAPI(){return document.getElementById('api-url').value.replace(/\/$/,'')}
-
-document.getElementById('btn-check').addEventListener('click',function(){
-  var dot=document.getElementById('api-dot');
-  fetch(getAPI()+'/api/health').then(function(r){return r.json()}).then(function(d){
-    dot.classList.add('ok');
-    showToast('✅ 连接成功！AI 模型: '+d.ai_model);
+function checkAPI(){
+  fetch(API_URL+'/api/health',{signal:AbortSignal.timeout(10000)}).then(function(r){return r.json()}).then(function(){
+    apiReady=true;
+    navStatus.textContent='● 服务正常';
+    navStatus.classList.remove('offline');
+    errorBanner.classList.remove('show');
   }).catch(function(){
-    dot.classList.remove('ok');
-    showToast('❌ 连接失败，请检查后端是否启动');
+    apiReady=false;
+    navStatus.textContent='● 服务离线';
+    navStatus.classList.add('offline');
+    errorBanner.classList.add('show');
   });
-});
+}
+checkAPI();
+setInterval(checkAPI,30000);
 
 document.getElementById('tabs').addEventListener('click',function(e){
   var tab=e.target.closest('.tab');
@@ -200,7 +204,8 @@ document.getElementById('tabs').addEventListener('click',function(e){
   checkReady();
 });
 
-dzEl.addEventListener('click',function(e){e.preventDefault();fiEl.value='';fiEl.click()});
+dzEl.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();fiEl.value='';fiEl.click()});
+dzEl.addEventListener('touchend',function(e){e.preventDefault();fiEl.value='';fiEl.click()});
 dzEl.addEventListener('dragover',function(e){e.preventDefault()});
 dzEl.addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files&&e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])});
 fiEl.addEventListener('change',function(){if(fiEl.files&&fiEl.files[0])setFile(fiEl.files[0])});
@@ -230,7 +235,9 @@ function checkReady(){
 
 btnGo.addEventListener('click',startGen);
 
+var genTimeout=null;
 function startGen(){
+  if(!apiReady){showToast('❌ 服务暂时不可用，请稍后再试');return}
   parsed=null;
   cardUpload.style.display='none';
   themeSec.classList.remove('show');
@@ -240,23 +247,29 @@ function startGen(){
   setStep(3,'','○ 生成模板');
   setStep(4,'','○ 准备预览');
 
+  genTimeout=setTimeout(function(){
+    showToast('⏱️ 解析时间较长，请耐心等待...');
+  },15000);
+
   var isFile=document.querySelector('.tab.active').getAttribute('data-tab')==='file';
   var fd=new FormData();
   if(isFile&&file) fd.append('file',file);
   else fd.append('text',tiEl.value);
 
-  fetch(getAPI()+'/api/parse',{method:'POST',body:fd}).then(function(r){
+  fetch(API_URL+'/api/parse',{method:'POST',body:fd}).then(function(r){
     setStep(1,'done','✓ 上传完成');
-    setStep(2,'active','◉ AI 解析中（约10-20秒）...');
+    setStep(2,'active','◉ AI 解析中（约10-30秒）...');
     if(!r.ok) return r.json().then(function(e){throw new Error(e.detail||'服务器错误')});
     return r.json();
   }).then(function(data){
+    if(genTimeout){clearTimeout(genTimeout);genTimeout=null}
     parsed=data;
     setStep(2,'done','✓ AI 解析完成');
     setStep(3,'done','✓ 模板生成');
     setStep(4,'done','✓ 就绪');
     setTimeout(showResult,300);
   }).catch(function(err){
+    if(genTimeout){clearTimeout(genTimeout);genTimeout=null}
     showToast('❌ '+err.message);
     loadingEl.classList.remove('show');
     cardUpload.style.display='block';
@@ -313,7 +326,7 @@ function downloadPNG(){
     html2canvas(renderTarget,{scale:2,useCORS:true,backgroundColor:'#f0f4f8',width:1200,height:h,windowWidth:1200,windowHeight:h,x:0,y:0,scrollX:0,scrollY:0,logging:false}).then(function(canvas){
       renderTarget.style.left='-9999px';renderTarget.style.opacity='0';
       canvas.toBlob(function(blob){
-        if(!blob){overlayEl.classList.remove('show');showToast('❌ 失败');return}
+        if(!blob){overlayEl.classList.remove('show');showToast('❌ 生成失败，请重试');return}
         var name=(parsed.title||'report').replace(/[\\/:*?"<>|]/g,'')+'_'+theme+'.png';
         var url=URL.createObjectURL(blob);
         var a=document.createElement('a');a.href=url;a.download=name;
@@ -326,7 +339,15 @@ function downloadPNG(){
       renderTarget.style.left='-9999px';renderTarget.style.opacity='0';
       overlayEl.classList.remove('show');showToast('❌ '+err.message);
     });
-  },800);
+  },1000);
+}
+
+function buildScoreRing(score,accent,size){
+  var sz=size||46;
+  var r=sz/2-5;
+  var circ=2*Math.PI*r;
+  var off=(circ*(1-score/100)).toFixed(1);
+  return '<div style="position:relative;width:'+sz+'px;height:'+sz+'px;margin:0 auto 4px"><div style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;border:5px solid #e2e8f0"></div><div style="position:absolute;top:0;left:0;width:100%;height:100%;border-radius:50%;border:5px solid transparent;border-top-color:'+accent+';border-right-color:'+(score>25?accent:'transparent')+';border-bottom-color:'+(score>50?accent:'transparent')+';border-left-color:'+(score>75?accent:'transparent')+';transform:rotate('+(3.6*score-90)+'deg)"></div><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:13px;font-weight:800">'+score+'</div></div>';
 }
 
 function buildHTML(data,c){
@@ -342,10 +363,19 @@ function buildHTML(data,c){
     }
     else if(s.type==='radar_score'){
       var dims=(s.dimensions||[]).slice(0,5);
-      var cards=dims.map(function(d){var off=(138.23*(1-d.score/100)).toFixed(1);return'<div style="text-align:center;padding:12px 4px;background:'+c.light+';border-radius:8px"><svg viewBox="0 0 52 52" width="46" height="46" style="transform:rotate(-90deg);margin-bottom:4px"><circle cx="26" cy="26" r="22" fill="none" stroke="#e2e8f0" stroke-width="5"/><circle cx="26" cy="26" r="22" fill="none" stroke="'+c.accent+'" stroke-width="5" stroke-linecap="round" stroke-dasharray="138.23" stroke-dashoffset="'+off+'"/></svg><div style="font-size:13px;font-weight:800;color:'+c.text+'">'+d.score+'</div><div style="font-size:9px;font-weight:600;color:#475569">'+d.name+'</div></div>'}).join('');
+      var totalScore=s.total_score||0;
+      if(!totalScore&&dims.length>0){
+        var sum=0;for(var di=0;di<dims.length;di++)sum+=dims[di].score||0;
+        totalScore=Math.round(sum/dims.length);
+      }
+      var cards=dims.map(function(d){
+        var pct=Math.min(100,Math.max(0,d.score||0));
+        var barW=Math.round(pct);
+        return'<div style="text-align:center;padding:12px 8px;background:'+c.light+';border-radius:8px"><div style="width:48px;height:48px;margin:0 auto 6px;position:relative;border-radius:50%;background:conic-gradient('+c.accent+' '+barW+'%, #e2e8f0 '+barW+'%)"><div style="position:absolute;top:4px;left:4px;right:4px;bottom:4px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:'+c.text+'">'+pct+'</div></div><div style="font-size:9px;font-weight:600;color:#475569">'+d.name+'</div></div>';
+      }).join('');
       var details=dims.map(function(d){return'<div style="padding:8px 12px;border-radius:6px;margin-bottom:5px;font-size:11px;color:#334155;background:'+c.light+';border-left:3px solid '+c.accent+'"><strong>'+d.name+' '+d.score+'分：</strong>'+(d.description||'')+'</div>'}).join('');
       var radar=buildRadar(dims,c);
-      secs+='<div style="background:#fff;border-radius:12px;padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">'+hdr+'<div style="text-align:center"><div style="display:inline-flex;align-items:center;gap:8px;background:'+c.bg+';color:#fff;border-radius:12px;padding:12px 20px;margin-bottom:14px"><span style="font-size:28px;font-weight:900">'+(s.total_score||0)+'</span><span style="font-size:11px;opacity:0.8">/100<br>综合评分</span></div></div>'+radar+'<div style="display:grid;grid-template-columns:repeat('+dims.length+',1fr);gap:8px">'+cards+'</div><div style="margin-top:14px">'+details+'</div><div style="background:'+c.light+';border:1px solid '+c.accent+'33;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:12px;color:'+c.text+';font-weight:600">✅ '+(s.conclusion||'')+'</div></div>';
+      secs+='<div style="background:#fff;border-radius:12px;padding:24px;margin-bottom:16px;box-shadow:0 2px 8px rgba(0,0,0,0.03)">'+hdr+'<div style="text-align:center"><div style="display:inline-flex;align-items:center;gap:8px;background:'+c.bg+';color:#fff;border-radius:12px;padding:12px 20px;margin-bottom:14px"><span style="font-size:28px;font-weight:900">'+totalScore+'</span><span style="font-size:11px;opacity:0.8">/100<br>综合评分</span></div></div>'+radar+'<div style="display:grid;grid-template-columns:repeat('+dims.length+',1fr);gap:8px">'+cards+'</div><div style="margin-top:14px">'+details+'</div>'+(s.conclusion?'<div style="background:'+c.light+';border:1px solid '+c.accent+'33;border-radius:8px;padding:10px 14px;margin-top:12px;font-size:12px;color:'+c.text+';font-weight:600">✅ '+s.conclusion+'</div>':'')+'</div>';
     }
     else if(s.type==='positioning'){
       var tags=(s.core_tags||[]).map(function(t){return'<span style="display:inline-block;background:'+c.bg+';color:#fff;border-radius:5px;padding:3px 10px;font-size:11px;font-weight:600;margin:2px">'+t+'</span>'}).join('');
@@ -392,11 +422,11 @@ function buildRadar(dims,c){
   var cx=130,cy=130,r=100;
   var angles=[];for(var i=0;i<n;i++)angles.push(Math.PI/2+2*Math.PI*i/n);
   function pts(s){return angles.map(function(a){return Math.round(cx+s*Math.cos(a))+','+Math.round(cy-s*Math.sin(a))}).join(' ')}
-  var dataPts=dims.map(function(d,i){return(cx+r*(d.score/100)*Math.cos(angles[i])).toFixed(1)+','+(cy-r*(d.score/100)*Math.sin(angles[i])).toFixed(1)}).join(' ');
-  var axes=angles.map(function(a){return'<line x1="'+cx+'" y1="'+cy+'" x2="'+Math.round(cx+r*Math.cos(a))+'" y2="'+Math.round(cy-r*Math.sin(a))+'" stroke="#cbd5e1" stroke-width="0.5"/>'}).join('');
-  var dots=dims.map(function(d,i){return'<circle cx="'+(cx+r*(d.score/100)*Math.cos(angles[i])).toFixed(1)+'" cy="'+(cy-r*(d.score/100)*Math.sin(angles[i])).toFixed(1)+'" r="4" fill="'+c.accent+'"/>'}).join('');
-  var labels=dims.map(function(d,i){var a=angles[i];var lx=(cx+(r+30)*Math.cos(a))/260*100;var ly=(cy-(r+30)*Math.sin(a))/260*100;return'<div style="position:absolute;top:'+ly.toFixed(1)+'%;left:'+lx.toFixed(1)+'%;transform:translate(-50%,-50%);font-size:10px;font-weight:600;color:#334155;text-align:center;white-space:nowrap"><span style="display:block;font-size:13px;font-weight:800;color:'+c.text+'">'+d.score+'</span>'+d.name+'</div>'}).join('');
-  return'<div style="display:flex;justify-content:center;margin-bottom:16px"><div style="position:relative;width:260px;height:260px"><svg viewBox="0 0 260 260" width="260" height="260"><polygon points="'+pts(r)+'" fill="none" stroke="#e2e8f0" stroke-width="1"/><polygon points="'+pts(r*0.66)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.5"/><polygon points="'+pts(r*0.33)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.3"/>'+axes+'<polygon points="'+dataPts+'" fill="'+c.accent+'20" stroke="'+c.accent+'" stroke-width="2.5" stroke-linejoin="round"/>'+dots+'</svg><div style="position:absolute;top:0;left:0;width:100%;height:100%">'+labels+'</div></div></div>';
+  var dataPts=dims.map(function(d,i){var sc=Math.min(100,Math.max(0,d.score||0));return(cx+r*(sc/100)*Math.cos(angles[i])).toFixed(1)+','+(cy-r*(sc/100)*Math.sin(angles[i])).toFixed(1)}).join(' ');
+  var axes='';for(var ai=0;ai<angles.length;ai++){axes+='<line x1="'+cx+'" y1="'+cy+'" x2="'+Math.round(cx+r*Math.cos(angles[ai]))+'" y2="'+Math.round(cy-r*Math.sin(angles[ai]))+'" stroke="#cbd5e1" stroke-width="0.5"/>';}
+  var dots='';for(var di2=0;di2<dims.length;di2++){var sc2=Math.min(100,Math.max(0,dims[di2].score||0));dots+='<circle cx="'+(cx+r*(sc2/100)*Math.cos(angles[di2])).toFixed(1)+'" cy="'+(cy-r*(sc2/100)*Math.sin(angles[di2])).toFixed(1)+'" r="4" fill="'+c.accent+'"/>';}
+  var labels='';for(var li=0;li<dims.length;li++){var a2=angles[li];var lx2=(cx+(r+30)*Math.cos(a2))/260*100;var ly2=(cy-(r+30)*Math.sin(a2))/260*100;labels+='<div style="position:absolute;top:'+ly2.toFixed(1)+'%;left:'+lx2.toFixed(1)+'%;transform:translate(-50%,-50%);font-size:10px;font-weight:600;color:#334155;text-align:center;white-space:nowrap"><span style="display:block;font-size:13px;font-weight:800;color:'+c.text+'">'+dims[li].score+'</span>'+dims[li].name+'</div>';}
+  return'<div style="display:flex;justify-content:center;margin-bottom:16px"><div style="position:relative;width:260px;height:260px"><svg viewBox="0 0 260 260" width="260" height="260" xmlns="http://www.w3.org/2000/svg"><polygon points="'+pts(r)+'" fill="none" stroke="#e2e8f0" stroke-width="1"/><polygon points="'+pts(r*0.66)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.5"/><polygon points="'+pts(r*0.33)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.3"/>'+axes+'<polygon points="'+dataPts+'" fill="'+c.accent+'20" stroke="'+c.accent+'" stroke-width="2.5" stroke-linejoin="round"/>'+dots+'</svg><div style="position:absolute;top:0;left:0;width:100%;height:100%">'+labels+'</div></div></div>';
 }
 
 function setStep(n,cls,txt){var el=document.getElementById('s'+n);el.className='ls'+(cls?' '+cls:'');el.textContent=txt}
