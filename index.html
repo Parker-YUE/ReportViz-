@@ -152,7 +152,7 @@ var file=null,theme='blue',parsed=null,apiReady=false;
 var C={
   blue:{bg:"linear-gradient(135deg,#0f2027 0%,#203a43 40%,#2c5364 100%)",accent:"#3b82f6",light:"#e0f2fe",text:"#0f2027"},
   green:{bg:"linear-gradient(135deg,#022c22 0%,#064e3b 40%,#065f46 100%)",accent:"#10b981",light:"#ecfdf5",text:"#064e3b"},
-  purple:{bg:"linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#4c1d95 100%)",accent:"#8b5cf6",light:"#ed[MAC_ADDRESS]",text:"#1e1b4b"}
+  purple:{bg:"linear-gradient(135deg,#1e1b4b 0%,#312e81 40%,#4c1d95 100%)",accent:"#8b5cf6",light:"#ede9fe",text:"#1e1b4b"}
 };
 
 var cardUpload=document.getElementById('card-upload');
@@ -172,8 +172,10 @@ var navStatus=document.getElementById('nav-status');
 var errorBanner=document.getElementById('error-banner');
 
 function checkAPI(){
-  fetch(API_URL+'/api/health').then(function(r){return r.json()}).then(function(){
-    apiReady=true;navStatus.textContent='● 服务正常';navStatus.classList.remove('offline');errorBanner.classList.remove('show');
+  fetch(API_URL+'/api/health',{mode:'cors'}).then(function(r){return r.json();}).then(function(d){
+    if(d&&(d.status==='healthy'||d.status==='ok')){
+      apiReady=true;navStatus.textContent='● 服务正常';navStatus.classList.remove('offline');errorBanner.classList.remove('show');
+    }
   }).catch(function(){
     apiReady=false;navStatus.textContent='● 服务离线';navStatus.classList.add('offline');errorBanner.classList.add('show');
   });
@@ -183,32 +185,32 @@ checkAPI();setInterval(checkAPI,30000);
 document.getElementById('tabs').addEventListener('click',function(e){
   var tab=e.target.closest('.tab');if(!tab)return;
   var t=tab.getAttribute('data-tab');
-  document.querySelectorAll('.tab').forEach(function(el){el.classList.remove('active')});
+  document.querySelectorAll('.tab').forEach(function(el){el.classList.remove('active');});
   tab.classList.add('active');
   document.getElementById('pf').style.display=t==='file'?'block':'none';
   document.getElementById('pt').style.display=t==='text'?'block':'none';
   checkReady();
 });
 
-dzEl.addEventListener('click',function(e){e.preventDefault();fiEl.value='';fiEl.click()});
-dzEl.addEventListener('touchend',function(e){e.preventDefault();fiEl.value='';fiEl.click()});
-dzEl.addEventListener('dragover',function(e){e.preventDefault()});
-dzEl.addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files&&e.dataTransfer.files[0])setFile(e.dataTransfer.files[0])});
-fiEl.addEventListener('change',function(){if(fiEl.files&&fiEl.files[0])setFile(fiEl.files[0])});
+dzEl.addEventListener('click',function(e){e.preventDefault();fiEl.value='';fiEl.click();});
+dzEl.addEventListener('touchend',function(e){e.preventDefault();fiEl.value='';fiEl.click();});
+dzEl.addEventListener('dragover',function(e){e.preventDefault();});
+dzEl.addEventListener('drop',function(e){e.preventDefault();if(e.dataTransfer.files&&e.dataTransfer.files[0])setFile(e.dataTransfer.files[0]);});
+fiEl.addEventListener('change',function(){if(fiEl.files&&fiEl.files[0])setFile(fiEl.files[0]);});
 document.getElementById('rm-btn').addEventListener('click',clearFile);
 
 function setFile(f){
   var ext=f.name.split('.').pop().toLowerCase();
-  if(['docx','pdf','txt','doc'].indexOf(ext)===-1){showToast('❌ 不支持的格式');return}
-  if(f.size>10*1024*1024){showToast('❌ 超过 10MB');return}
+  if(['docx','pdf','txt','doc'].indexOf(ext)===-1){showToast('❌ 不支持的格式');return;}
+  if(f.size>10*1024*1024){showToast('❌ 超过 10MB');return;}
   file=f;parsed=null;fbEl.classList.add('show');
   document.getElementById('fn').textContent=f.name;
   document.getElementById('fs').textContent=(f.size/1024).toFixed(1)+' KB';
   showToast('✅ 文件已选择: '+f.name);checkReady();
 }
-function clearFile(){file=null;parsed=null;fiEl.value='';fbEl.classList.remove('show');checkReady()}
+function clearFile(){file=null;parsed=null;fiEl.value='';fbEl.classList.remove('show');checkReady();}
 tiEl.addEventListener('input',checkReady);
-tiEl.addEventListener('paste',function(){setTimeout(checkReady,100)});
+tiEl.addEventListener('paste',function(){setTimeout(checkReady,100);});
 function checkReady(){
   var isFile=document.querySelector('.tab.active').getAttribute('data-tab')==='file';
   btnGo.disabled=isFile?!file:tiEl.value.trim().length<30;
@@ -216,15 +218,15 @@ function checkReady(){
 
 btnGo.addEventListener('click',startGen);
 function startGen(){
-  if(!apiReady){showToast('❌ 服务暂时不可用');return}
+  if(!apiReady){showToast('❌ 服务暂时不可用');return;}
   parsed=null;cardUpload.style.display='none';themeSec.classList.remove('show');loadingEl.classList.add('show');
   setStep(1,'active','◉ 上传到服务器...');setStep(2,'','○ AI 智能解析');setStep(3,'','○ 生成模板');setStep(4,'','○ 准备预览');
   var isFile=document.querySelector('.tab.active').getAttribute('data-tab')==='file';
   var fd=new FormData();
-  if(isFile&&file)fd.append('file',file);else fd.append('text',tiEl.value);
-  fetch(API_URL+'/api/parse',{method:'POST',body:fd}).then(function(r){
+  if(isFile&&file){fd.append('file',file);}else{fd.append('text',tiEl.value);}
+  fetch(API_URL+'/api/parse',{method:'POST',body:fd,mode:'cors'}).then(function(r){
     setStep(1,'done','✓ 上传完成');setStep(2,'active','◉ AI 解析中...');
-    if(!r.ok)return r.json().then(function(e){throw new Error(e.detail||'服务器错误')});return r.json();
+    if(!r.ok){return r.json().then(function(e){throw new Error(e.detail||'服务器错误');});}return r.json();
   }).then(function(data){
     parsed=fixClientScores(data);
     setStep(2,'done','✓ 解析完成');setStep(3,'done','✓ 模板生成');setStep(4,'done','✓ 就绪');
@@ -241,12 +243,13 @@ function fixClientScores(data){
       var dims=ss[i].dimensions||[];
       for(var j=0;j<dims.length;j++){
         var sc=parseInt(dims[j].score)||70;
-        if(sc<=10)sc=sc*10;
-        if(sc<50)sc=50;if(sc>100)sc=100;
+        if(sc<=10){sc=sc*10;}
+        if(sc<50){sc=50;}
+        if(sc>100){sc=100;}
         dims[j].score=sc;
       }
       if(dims.length>0){
-        var sum=0;for(var k=0;k<dims.length;k++)sum+=dims[k].score;
+        var sum=0;for(var k=0;k<dims.length;k++){sum+=dims[k].score;}
         ss[i].total_score=Math.round(sum/dims.length);
       }
     }
@@ -254,15 +257,15 @@ function fixClientScores(data){
   return data;
 }
 
-function showResult(){loadingEl.classList.remove('show');themeSec.classList.add('show');renderPreview();showToast('✅ 解析成功！')}
+function showResult(){loadingEl.classList.remove('show');themeSec.classList.add('show');renderPreview();showToast('✅ 解析成功！');}
 
 document.getElementById('theme-grid').addEventListener('click',function(e){
   var card=e.target.closest('.tcard');if(!card)return;
   theme=card.getAttribute('data-theme');
-  document.querySelectorAll('.tcard').forEach(function(c2){c2.classList.remove('sel')});
+  document.querySelectorAll('.tcard').forEach(function(c2){c2.classList.remove('sel');});
   card.classList.add('sel');renderPreview();
 });
-document.getElementById('btn-back').addEventListener('click',function(){themeSec.classList.remove('show');cardUpload.style.display='block';parsed=null});
+document.getElementById('btn-back').addEventListener('click',function(){themeSec.classList.remove('show');cardUpload.style.display='block';parsed=null;});
 
 function renderPreview(){
   if(!parsed)return;
@@ -273,7 +276,7 @@ function renderPreview(){
 
 document.getElementById('btn-dl').addEventListener('click',downloadPNG);
 function downloadPNG(){
-  if(!parsed){showToast('❌ 请先生成');return}
+  if(!parsed){showToast('❌ 请先生成');return;}
   overlayEl.classList.add('show');overlayMsg.textContent='渲染高清图片中...';
   var html=buildHTML(parsed,C[theme]);
   renderTarget.innerHTML=html;
@@ -285,11 +288,11 @@ function downloadPNG(){
     html2canvas(renderTarget,{scale:2,useCORS:true,backgroundColor:'#f0f4f8',width:1200,height:h,windowWidth:1200,windowHeight:h,logging:false}).then(function(canvas){
       renderTarget.style.left='-9999px';renderTarget.style.opacity='0';
       canvas.toBlob(function(blob){
-        if(!blob){overlayEl.classList.remove('show');showToast('❌ 失败');return}
+        if(!blob){overlayEl.classList.remove('show');showToast('❌ 失败');return;}
         var name=(parsed.title||'report').replace(/[\\/:*?"<>|]/g,'')+'_'+theme+'.png';
         var url=URL.createObjectURL(blob);var a=document.createElement('a');a.href=url;a.download=name;
         document.body.appendChild(a);a.click();document.body.removeChild(a);
-        setTimeout(function(){URL.revokeObjectURL(url)},2000);
+        setTimeout(function(){URL.revokeObjectURL(url);},2000);
         overlayEl.classList.remove('show');showToast('✅ 已下载');
       },'image/png',1.0);
     }).catch(function(err){
@@ -307,13 +310,13 @@ function buildHTML(data,c){
     var hdr='<div style="font-size:14px;font-weight:700;color:'+c.text+';margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #e2e8f0;display:flex;align-items:center;gap:7px"><div style="background:'+c.accent+';color:#fff;width:20px;height:20px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0">'+num+'</div><span>'+(s.title||'')+'</span></div>';
 
     if(s.type==='info_grid'){
-      var items=(s.items||[]).map(function(it){return'<div style="display:flex;gap:6px;font-size:11px;padding:5px 8px;background:#f8fafc;border-radius:4px;'+(it.full_width?'grid-column:1/-1;':'')+'"><span style="color:#64748b;min-width:64px;flex-shrink:0;font-weight:600">'+(it.label||'')+'</span><span style="color:#1a202c;font-weight:500">'+(it.value||'')+'</span></div>'}).join('');
+      var items=(s.items||[]).map(function(it){return '<div style="display:flex;gap:6px;font-size:11px;padding:5px 8px;background:#f8fafc;border-radius:4px;'+(it.full_width?'grid-column:1/-1;':'')+'"><span style="color:#64748b;min-width:64px;flex-shrink:0;font-weight:600">'+(it.label||'')+'</span><span style="color:#1a202c;font-weight:500">'+(it.value||'')+'</span></div>';}).join('');
       secs+='<div style="background:#fff;border-radius:10px;padding:16px;margin-bottom:10px">'+hdr+'<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 10px">'+items+'</div></div>';
     }
     else if(s.type==='radar_score'){
       var dims=(s.dimensions||[]).slice(0,5);
       var totalScore=parseInt(s.total_score)||0;
-      if(totalScore<50&&dims.length>0){var sm=0;for(var di=0;di<dims.length;di++)sm+=dims[di].score;totalScore=Math.round(sm/dims.length);}
+      if(totalScore<50&&dims.length>0){var sm=0;for(var di=0;di<dims.length;di++){sm+=dims[di].score;}totalScore=Math.round(sm/dims.length);}
 
       var scoreCards='';
       for(var si=0;si<dims.length;si++){
@@ -324,7 +327,6 @@ function buildHTML(data,c){
         var circumference=113;
         var offset=Math.round(circumference-circumference*dsc/100);
         var halfRing=ringSize/2;
-
         scoreCards+='<div style="background:'+c.light+';border-radius:8px;padding:8px 4px;text-align:center;min-width:0">'
           +'<div style="width:'+ringSize+'px;height:'+ringSize+'px;margin:0 auto 3px;position:relative">'
           +'<svg width="'+ringSize+'" height="'+ringSize+'" viewBox="0 0 '+ringSize+' '+ringSize+'" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision">'
@@ -353,10 +355,10 @@ function buildHTML(data,c){
         +'</div>';
     }
     else if(s.type==='positioning'){
-      var tags=(s.core_tags||[]).map(function(t){return'<span style="display:inline-block;background:'+c.bg+';color:#fff;border-radius:4px;padding:3px 9px;font-size:10px;font-weight:600;margin:2px">'+t+'</span>'}).join('');
-      var advs=(s.advantages||[]).map(function(a){return'<div style="padding:7px 10px;margin-bottom:4px;border-radius:5px;background:#f8fafc;font-size:11px;border:1px solid #e2e8f0"><strong style="color:'+c.text+'">'+(a.title||'')+'：</strong>'+(a.desc||'')+'</div>'}).join('');
-      var avoids=(s.avoid||[]).map(function(a2){return'<div style="background:#fef2f2;border-radius:4px;padding:5px 9px;margin-bottom:3px;font-size:10px;color:#991b1b;border:1px solid #fecaca">❌ '+a2+'</div>'}).join('');
-      var recs=(s.recommend||[]).map(function(r2){return'<div style="background:#f0fdf4;border-radius:4px;padding:5px 9px;margin-top:3px;font-size:10px;color:#166534;border:1px solid #bbf7d0">✅ '+r2+'</div>'}).join('');
+      var tags=(s.core_tags||[]).map(function(t){return '<span style="display:inline-block;background:'+c.bg+';color:#fff;border-radius:4px;padding:3px 9px;font-size:10px;font-weight:600;margin:2px">'+t+'</span>';}).join('');
+      var advs=(s.advantages||[]).map(function(a){return '<div style="padding:7px 10px;margin-bottom:4px;border-radius:5px;background:#f8fafc;font-size:11px;border:1px solid #e2e8f0"><strong style="color:'+c.text+'">'+(a.title||'')+'：</strong>'+(a.desc||'')+'</div>';}).join('');
+      var avoids=(s.avoid||[]).map(function(a2){return '<div style="background:#fef2f2;border-radius:4px;padding:5px 9px;margin-bottom:3px;font-size:10px;color:#991b1b;border:1px solid #fecaca">❌ '+a2+'</div>';}).join('');
+      var recs=(s.recommend||[]).map(function(r2){return '<div style="background:#f0fdf4;border-radius:4px;padding:5px 9px;margin-top:3px;font-size:10px;color:#166534;border:1px solid #bbf7d0">✅ '+r2+'</div>';}).join('');
       secs+='<div style="background:#fff;border-radius:10px;padding:16px;margin-bottom:10px">'+hdr+'<div style="margin-bottom:8px">'+tags+'</div>'+advs+'<div style="margin-top:6px">'+avoids+recs+'</div></div>';
     }
     else if(s.type==='track_cards'){
@@ -364,18 +366,18 @@ function buildHTML(data,c){
         var isMain=t2.level==='main';
         var lbl={main:'主赛道',side:'副业赛道',advanced:'高阶赛道'}[t2.level]||'赛道';
         var lbg={main:c.accent,side:'#f59e0b',advanced:'#8b5cf6'}[t2.level]||c.accent;
-        return'<div style="border:1px solid '+(isMain?c.accent:'#e2e8f0')+';border-radius:7px;padding:10px;margin-bottom:6px;'+(isMain?'background:'+c.light:'')+'"><span style="display:inline-block;font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;margin-bottom:3px;color:#fff;background:'+lbg+'">'+lbl+'</span><div style="font-size:11px;font-weight:700;color:'+c.text+';margin-bottom:3px">'+(t2.name||'')+'</div><div style="font-size:10px;color:#475569;line-height:1.6">'+(t2.content||'')+'</div></div>';
+        return '<div style="border:1px solid '+(isMain?c.accent:'#e2e8f0')+';border-radius:7px;padding:10px;margin-bottom:6px;'+(isMain?'background:'+c.light:'')+'"><span style="display:inline-block;font-size:8px;font-weight:700;padding:2px 6px;border-radius:3px;margin-bottom:3px;color:#fff;background:'+lbg+'">'+lbl+'</span><div style="font-size:11px;font-weight:700;color:'+c.text+';margin-bottom:3px">'+(t2.name||'')+'</div><div style="font-size:10px;color:#475569;line-height:1.6">'+(t2.content||'')+'</div></div>';
       }).join('');
       secs+='<div style="background:#fff;border-radius:10px;padding:16px;margin-bottom:10px">'+hdr+tracks+'</div>';
     }
     else if(s.type==='shortboard'){
-      var sols=(s.solutions||[]).map(function(x){return'<div style="padding:5px 9px;border-radius:4px;margin-bottom:3px;font-size:10px;color:#334155;background:'+c.light+';border-left:3px solid '+c.accent+'">● '+x+'</div>'}).join('');
+      var sols=(s.solutions||[]).map(function(x){return '<div style="padding:5px 9px;border-radius:4px;margin-bottom:3px;font-size:10px;color:#334155;background:'+c.light+';border-left:3px solid '+c.accent+'">● '+x+'</div>';}).join('');
       secs+='<div style="background:#fff;border-radius:10px;padding:16px;margin-bottom:10px">'+hdr+'<div style="background:#fef2f2;border-radius:5px;padding:7px 10px;margin-bottom:6px;font-size:11px;color:#991b1b;border:1px solid #fecaca">🔍 <strong>核心问题：</strong>'+(s.problem||'')+'</div>'+sols+'</div>';
     }
     else if(s.type==='timeline'){
       var phases=(s.phases||[]).map(function(p){
         var acts='';var pacts=p.actions||[];for(var ai2=0;ai2<pacts.length;ai2++){acts+='<div style="padding:1px 0;font-size:10px;color:#475569">• '+pacts[ai2]+'</div>';}
-        return'<div style="margin-bottom:10px;padding-left:14px;border-left:3px solid '+c.accent+'"><div style="font-size:11px;font-weight:700;color:'+c.text+';margin-bottom:2px">'+(p.name||'')+'</div>'+(p.goal?'<div style="font-size:10px;color:'+c.accent+';font-weight:600;margin-bottom:2px">🎯 '+p.goal+'</div>':'')+'<div style="line-height:1.6">'+acts+'</div></div>';
+        return '<div style="margin-bottom:10px;padding-left:14px;border-left:3px solid '+c.accent+'"><div style="font-size:11px;font-weight:700;color:'+c.text+';margin-bottom:2px">'+(p.name||'')+'</div>'+(p.goal?'<div style="font-size:10px;color:'+c.accent+';font-weight:600;margin-bottom:2px">🎯 '+p.goal+'</div>':'')+'<div style="line-height:1.6">'+acts+'</div></div>';
       }).join('');
       secs+='<div style="background:#fff;border-radius:10px;padding:16px;margin-bottom:10px">'+hdr+phases+'</div>';
     }
@@ -384,33 +386,53 @@ function buildHTML(data,c){
     }
     num++;
   }
-  var badges=(data.badges||[]).map(function(b){return'<span style="display:inline-block;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:3px 8px;font-size:9px;margin:2px">'+b+'</span>'}).join('');
+  var badges=(data.badges||[]).map(function(b){return '<span style="display:inline-block;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:10px;padding:3px 8px;font-size:9px;margin:2px">'+b+'</span>';}).join('');
   var meta=data.meta||{};
   var metaHtml='';
-  if(meta.date&&meta.date!=='—')metaHtml+='<span>📅 '+meta.date+'</span>';
-  if(meta.duration&&meta.duration!=='—')metaHtml+='<span style="margin-left:12px">⏱️ '+meta.duration+'</span>';
+  if(meta.date&&meta.date!=='—'){metaHtml+='<span>📅 '+meta.date+'</span>';}
+  if(meta.duration&&meta.duration!=='—'){metaHtml+='<span style="margin-left:12px">⏱️ '+meta.duration+'</span>';}
   return '<div style="background:#f0f4f8;padding:20px 16px;font-family:-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif;color:#1a202c;line-height:1.6"><div style="max-width:840px;margin:0 auto"><div style="background:'+c.bg+';border-radius:12px;padding:24px 20px;color:#fff;margin-bottom:12px"><div style="font-size:20px;font-weight:800;margin-bottom:3px">'+(data.title||'报告')+'</div><div style="font-size:10px;opacity:0.7;margin-bottom:8px">'+(data.subtitle||'')+'</div><div style="font-size:10px;opacity:0.8;margin-bottom:6px">'+metaHtml+'</div><div style="display:flex;gap:4px;flex-wrap:wrap">'+badges+'</div></div>'+secs+'<div style="text-align:center;padding:8px 0;font-size:9px;color:#94a3b8">'+(data.title||'')+' · ReportViz</div></div></div>';
 }
 
 function buildRadar(dims,c){
-  function buildRadar(dims,c){
-  var n=dims.length;if(n<3)return'';
+  var n=dims.length;
+  if(n<3){return '';}
   var r=100;
   var labelR=r+30;
   var pad=70;
   var size=2*(labelR+pad);
   var cx=size/2,cy=size/2;
-  var angles=[];for(var i=0;i<n;i++)angles.push(Math.PI/2+2*Math.PI*i/n);
-  function pts(s2){var p='';for(var pi=0;pi<angles.length;pi++){if(pi>0)p+=' ';p+=Math.round(cx+s2*Math.cos(angles[pi]))+','+Math.round(cy-s2*Math.sin(angles[pi]));}return p;}
-  var dataP='';for(var dp=0;dp<n;dp++){var scd=dims[dp].score;if(dp>0)dataP+=' ';dataP+=Math.round(cx+r*(scd/100)*Math.cos(angles[dp]))+','+Math.round(cy-r*(scd/100)*Math.sin(angles[dp]));}
-  var axes='';for(var ai=0;ai<n;ai++){axes+='<line x1="'+cx+'" y1="'+cy+'" x2="'+Math.round(cx+r*Math.cos(angles[ai]))+'" y2="'+Math.round(cy-r*Math.sin(angles[ai]))+'" stroke="#cbd5e1" stroke-width="0.8"></line>';}
-  var dots='';for(var doi=0;doi<n;doi++){dots+='<circle cx="'+Math.round(cx+r*(dims[doi].score/100)*Math.cos(angles[doi]))+'" cy="'+Math.round(cy-r*(dims[doi].score/100)*Math.sin(angles[doi]))+'" r="4" fill="'+c.accent+'"></circle>';}
+  var angles=[];
+  for(var i=0;i<n;i++){angles.push(Math.PI/2+2*Math.PI*i/n);}
+  function pts(s2){
+    var p='';
+    for(var pi=0;pi<angles.length;pi++){
+      if(pi>0){p+=' ';}
+      p+=Math.round(cx+s2*Math.cos(angles[pi]))+','+Math.round(cy-s2*Math.sin(angles[pi]));
+    }
+    return p;
+  }
+  var dataP='';
+  for(var dp=0;dp<n;dp++){
+    var scd=dims[dp].score;
+    if(dp>0){dataP+=' ';}
+    dataP+=Math.round(cx+r*(scd/100)*Math.cos(angles[dp]))+','+Math.round(cy-r*(scd/100)*Math.sin(angles[dp]));
+  }
+  var axes='';
+  for(var ai=0;ai<n;ai++){
+    axes+='<line x1="'+cx+'" y1="'+cy+'" x2="'+Math.round(cx+r*Math.cos(angles[ai]))+'" y2="'+Math.round(cy-r*Math.sin(angles[ai]))+'" stroke="#cbd5e1" stroke-width="0.8"></line>';
+  }
+  var dots='';
+  for(var doi=0;doi<n;doi++){
+    dots+='<circle cx="'+Math.round(cx+r*(dims[doi].score/100)*Math.cos(angles[doi]))+'" cy="'+Math.round(cy-r*(dims[doi].score/100)*Math.sin(angles[doi]))+'" r="4" fill="'+c.accent+'"></circle>';
+  }
   var labels='';
   for(var li=0;li<n;li++){
     var a2=angles[li];
     var lx=cx+labelR*Math.cos(a2);
     var ly=cy-labelR*Math.sin(a2);
-    var ta='middle';var dy=0;
+    var ta='middle';
+    var dy=0;
     if(Math.cos(a2)>0.25){ta='start';lx+=4;}
     else if(Math.cos(a2)<-0.25){ta='end';lx-=4;}
     if(Math.sin(a2)>0.7){dy=-8;}
@@ -428,9 +450,11 @@ function buildRadar(dims,c){
     +dots+labels
     +'</svg></div>';
 }
-function setStep(n2,cls,txt){var el=document.getElementById('s'+n2);el.className='ls'+(cls?' '+cls:'');el.textContent=txt}
+
+function setStep(n2,cls,txt){var el=document.getElementById('s'+n2);el.className='ls'+(cls?' '+cls:'');el.textContent=txt;}
 var toastTimer=null;
-function showToast(msg){toastEl.textContent=msg;toastEl.classList.add('show');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(function(){toastEl.classList.remove('show')},3500)}
+function showToast(msg){toastEl.textContent=msg;toastEl.classList.add('show');if(toastTimer){clearTimeout(toastTimer);}toastTimer=setTimeout(function(){toastEl.classList.remove('show');},3500);}
 })();
 </script>
 </body>
+</html>
