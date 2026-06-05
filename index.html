@@ -318,11 +318,15 @@ function buildHTML(data,c){
       var scoreCards='';
       for(var si=0;si<dims.length;si++){
         var dsc=dims[si].score;
+        var circ=126;
+        var off=Math.round(circ*(1-dsc/100));
         scoreCards+='<div style="background:'+c.light+';border-radius:10px;padding:14px 8px;text-align:center;min-width:0">'
-          +'<div style="font-size:22px;font-weight:900;color:'+c.text+'">'+dsc+'</div>'
-          +'<div style="font-size:9px;color:#64748b;margin-bottom:6px">/100</div>'
-          +'<div style="height:6px;background:#e2e8f0;border-radius:3px;overflow:hidden;margin:0 4px"><div style="height:100%;width:'+dsc+'%;background:'+c.accent+';border-radius:3px"></div></div>'
-          +'<div style="font-size:10px;font-weight:600;color:#475569;margin-top:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+dims[si].name+'</div>'
+          +'<svg width="56" height="56" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg" style="display:block;margin:0 auto 4px">'
+          +'<circle cx="28" cy="28" r="20" fill="none" stroke="#e2e8f0" stroke-width="5"></circle>'
+          +'<circle cx="28" cy="28" r="20" fill="none" stroke="'+c.accent+'" stroke-width="5" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+off+'" transform="rotate(-90 28 28)"></circle>'
+          +'<text x="28" y="33" text-anchor="middle" style="font-size:14px;font-weight:800;fill:'+c.text+'">'+dsc+'</text>'
+          +'</svg>'
+          +'<div style="font-size:10px;font-weight:600;color:#475569;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+dims[si].name+'</div>'
           +'</div>';
       }
 
@@ -391,13 +395,14 @@ function buildRadar(dims,c){
   var dots='';for(var doi=0;doi<n;doi++){dots+='<circle cx="'+Math.round(cx+r*(dims[doi].score/100)*Math.cos(angles[doi]))+'" cy="'+Math.round(cy-r*(dims[doi].score/100)*Math.sin(angles[doi]))+'" r="4" fill="'+c.accent+'"></circle>';}
   var labelHtml='';
   for(var li=0;li<n;li++){
-    var lx=cx+(r+40)*Math.cos(angles[li]);
-    var ly=cy-(r+40)*Math.sin(angles[li]);
+    var a2=angles[li];
+    var lx=cx+(r+40)*Math.cos(a2);
+    var ly=cy-(r+40)*Math.sin(a2);
     var anchor='middle';
     if(lx<cx-20)anchor='end';
     if(lx>cx+20)anchor='start';
-    labelHtml+='<text x="'+Math.round(lx)+'" y="'+Math.round(ly-4)+'" text-anchor="'+anchor+'" style="font-size:13px;font-weight:800;fill:'+c.text+'">'+dims[li].score+'</text>';
-    labelHtml+='<text x="'+Math.round(lx)+'" y="'+Math.round(ly+12)+'" text-anchor="'+anchor+'" style="font-size:10px;font-weight:600;fill:#475569">'+dims[li].name+'</text>';
+    labelHtml+='<text x="'+Math.round(lx)+'" y="'+Math.round(ly-4)+'" text-anchor="'+anchor+'" font-size="13" font-weight="800" fill="'+c.text+'">'+dims[li].score+'</text>';
+    labelHtml+='<text x="'+Math.round(lx)+'" y="'+Math.round(ly+12)+'" text-anchor="'+anchor+'" font-size="10" font-weight="600" fill="#475569">'+dims[li].name+'</text>';
   }
   return '<div style="text-align:center;margin-bottom:16px"><svg width="300" height="300" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg" style="display:inline-block"><polygon points="'+pts(r)+'" fill="none" stroke="#e2e8f0" stroke-width="1"></polygon><polygon points="'+pts(r*0.66)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.5"></polygon><polygon points="'+pts(r*0.33)+'" fill="none" stroke="#e2e8f0" stroke-width="0.5" opacity="0.3"></polygon>'+axes+'<polygon points="'+dataP+'" fill="'+c.accent+'" fill-opacity="0.15" stroke="'+c.accent+'" stroke-width="2.5" stroke-linejoin="round"></polygon>'+dots+labelHtml+'</svg></div>';
 }
