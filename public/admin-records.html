@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReportViz 管理后台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#e2e8f0;min-height:100vh}
+.nav{padding:16px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06)}
+.logo{font-size:20px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-right{display:flex;gap:12px;align-items:center}
+.container{max-width:1100px;margin:0 auto;padding:20px 28px}
+.section-title{font-size:18px;font-weight:800;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.card{background:rgba(15,23,42,0.7);border:1px solid rgba(255,255,255,0.06);border-radius:12px;padding:20px;margin-bottom:20px}
+.btn{padding:10px 18px;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;transition:0.2s}
+.btn-primary{background:linear-gradient(135deg,#3b82f6,#7c3aed);color:#fff}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(59,130,246,0.2)}
+.btn-ghost{background:rgba(255,255,255,0.04);color:#94a3b8;border:1px solid rgba(255,255,255,0.08)}
+.btn-danger{background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.2)}
+.btn-sm{padding:6px 12px;font-size:11px;border-radius:6px}
+/* 邀请码表格 */
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:10px 12px;color:#64748b;font-weight:600;border-bottom:1px solid rgba(255,255,255,0.06);font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03)}
+tr:hover td{background:rgba(255,255,255,0.02)}
+.code-tag{background:rgba(96,165,250,0.1);color:#60a5fa;padding:3px 8px;border-radius:4px;font-weight:700;font-family:monospace;font-size:11px}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600}
+.badge-green{background:rgba(16,185,129,0.15);color:#10b981}
+.badge-red{background:rgba(239,68,68,0.15);color:#ef4444}
+.badge-yellow{background:rgba(245,158,11,0.15);color:#f59e0b}
+/* 记录列表 */
+.record-item{padding:14px;border:1px solid rgba(255,255,255,0.05);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:0.15s}
+.record-item:hover{border-color:rgba(255,255,255,0.12);background:rgba(255,255,255,0.02)}
+.record-meta{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:#64748b;margin-top:6px}
+.record-title{font-size:13px;font-weight:600}
+/* 弹窗 */
+.modal-overlay{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:100;align-items:center;justify-content:center;padding:20px}
+.modal-overlay.show{display:flex}
+.modal{background:#1e293b;border:1px solid rgba(255,255,255,0.08);border-radius:14px;padding:28px;max-width:500px;width:100%;max-height:80vh;overflow-y:auto}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:16px}
+.modal-close{float:right;cursor:pointer;color:#64748b;font-size:18px}
+.modal-close:hover{color:#e2e8f0}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:12px;font-weight:600;color:#94a3b8;margin-bottom:6px}
+.form-input{width:100%;padding:10px 12px;background:rgba(15,23,42,0.9);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#e2e8f0;font-size:13px}
+.form-input:focus{outline:none;border-color:rgba(96,165,250,0.3)}
+/* 分页 */
+.pagination{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;font-size:12px;color:#64748b}
+.pagination .page-btn{padding:6px 10px;border-radius:6px;cursor:pointer;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);color:#94a3b8;font-size:12px}
+.pagination .page-btn:hover{background:rgba(255,255,255,0.08)}
+.pagination .page-btn.active{background:rgba(96,165,250,0.15);color:#60a5fa;border-color:rgba(96,165,250,0.3)}
+/* 筛选 */
+.filter-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+.filter-input{padding:8px 12px;background:rgba(15,23,42,0.9);border:1px solid rgba(255,255,255,0.08);border-radius:6px;color:#e2e8f0;font-size:12px;width:160px}
+.filter-input:focus{outline:none;border-color:rgba(96,165,250,0.3)}
+.filter-input::placeholder{color:#334155}
+.toast{position:fixed;bottom:16px;right:16px;background:#1e293b;border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:10px 16px;font-size:12px;color:#e2e8f0;z-index:1000;opacity:0;transform:translateY(6px);transition:0.3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateY(0)}
+.empty{text-align:center;padding:40px;color:#475569;font-size:13px}
+.json-view{background:rgba(0,0,0,0.3);border-radius:8px;padding:14px;font-size:11px;font-family:monospace;white-space:pre-wrap;word-break:break-all;color:#94a3b8;max-height:400px;overflow-y:auto;line-height:1.6}
+@media(max-width:768px){.container{padding:0 14px}.card{padding:14px}table{font-size:11px}th,td{padding:8px 6px}.filter-bar{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo">ReportViz Admin</div>
+  <div class="nav-right">
+    <a href="/" style="font-size:12px;color:#64748b;text-decoration:none">← 返回首页</a>
+    <button class="btn btn-danger btn-sm" id="btn-logout">退出登录</button>
+  </div>
+</nav>
+
+<div class="container">
+  <!-- 邀请码管理 -->
+  <div class="section-title">🎫 邀请码管理</div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="font-size:12px;color:#64748b">管理所有邀请码</span>
+      <button class="btn btn-primary btn-sm" id="btn-new-code">+ 生成邀请码</button>
+    </div>
+    <div id="codes-table-wrap">
+      <table>
+        <thead><tr><th>邀请码</th><th>备注</th><th>使用情况</th><th>有效期</th><th>状态</th><th>创建时间</th></tr></thead>
+        <tbody id="codes-tbody"></tbody>
+      </table>
+    </div>
+    <div id="codes-empty" class="empty" style="display:none">暂无邀请码</div>
+  </div>
+
+  <!-- 解析记录 -->
+  <div class="section-title">📊 解析记录</div>
+  <div class="card">
+    <div class="filter-bar">
+      <input class="filter-input" id="filter-code" placeholder="按邀请码筛选">
+      <button class="btn btn-ghost btn-sm" id="btn-filter">筛选</button>
+      <button class="btn btn-ghost btn-sm" id="btn-clear-filter">清除</button>
+    </div>
+    <div id="records-list"></div>
+    <div id="records-empty" class="empty" style="display:none">暂无记录</div>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
+
+<!-- 生成邀请码弹窗 -->
+<div class="modal-overlay" id="modal-code">
+  <div class="modal">
+    <span class="modal-close" id="modal-code-close">✕</span>
+    <h3>生成新邀请码</h3>
+    <div class="form-group">
+      <label>最大使用次数</label>
+      <input class="form-input" id="new-max-uses" type="number" value="1" min="1">
+    </div>
+    <div class="form-group">
+      <label>有效天数（0=永不过期）</label>
+      <input class="form-input" id="new-expires-days" type="number" value="30" min="0">
+    </div>
+    <div class="form-group">
+      <label>备注（可选，最多100字）</label>
+      <input class="form-input" id="new-note" placeholder="如：给张三的" maxlength="100">
+    </div>
+    <button class="btn btn-primary" id="btn-create-code">生成邀请码</button>
+  </div>
+</div>
+
+<!-- 记录详情弹窗 -->
+<div class="modal-overlay" id="modal-detail">
+  <div class="modal" style="max-width:700px">
+    <span class="modal-close" id="modal-detail-close">✕</span>
+    <h3>记录详情</h3>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+var adminToken=null;
+try{adminToken=localStorage.getItem('rv_admin_token')}catch(e){}
+
+// 未登录跳转
+if(!adminToken){window.location.href='/admin';return}
+
+var toastEl=document.getElementById('toast');
+var toastTimer=null;
+function showToast(msg){toastEl.textContent=msg;toastEl.classList.add('show');if(toastTimer)clearTimeout(toastTimer);toastTimer=setTimeout(function(){toastEl.classList.remove('show')},3000)}
+
+function apiFetch(url,opts){
+  opts=opts||{};
+  opts.headers=opts.headers||{};
+  opts.headers['Authorization']='Bearer '+adminToken;
+  return fetch(url,opts).then(function(r){
+    if(r.status===401||r.status===403){
+      try{localStorage.removeItem('rv_admin_token')}catch(e){}
+      window.location.href='/admin';
+      return Promise.reject(new Error('登录已过期'));
+    }
+    return r.json().then(function(d){if(!r.ok) throw new Error(d.error||'请求失败');return d});
+  });
+}
+
+// === 退出登录 ===
+document.getElementById('btn-logout').addEventListener('click',function(){
+  try{localStorage.removeItem('rv_admin_token')}catch(e){}
+  window.location.href='/admin';
+});
+
+// === 邀请码管理 ===
+function loadCodes(){
+  apiFetch('/api/codes').then(function(data){
+    var codes=data.codes||[];
+    var tbody=document.getElementById('codes-tbody');
+    var empty=document.getElementById('codes-empty');
+    if(!codes.length){tbody.innerHTML='';empty.style.display='block';return}
+    empty.style.display='none';
+    tbody.innerHTML=codes.map(function(c){
+      var status='';
+      var now=new Date();
+      var expired=c.expires_at&&new Date(c.expires_at)<now;
+      var usedUp=c.max_uses>0&&c.used_count>=c.max_uses;
+      if(expired) status='<span class="badge badge-red">已过期</span>';
+      else if(usedUp) status='<span class="badge badge-yellow">已用完</span>';
+      else status='<span class="badge badge-green">可用</span>';
+      var expires=c.expires_at?new Date(c.expires_at).toLocaleDateString('zh-CN'):'永久';
+      return'<tr><td><span class="code-tag">'+c.code+'</span></td><td>'+(c.note||'—')+'</td><td>'+c.used_count+'/'+(c.max_uses||'∞')+'</td><td>'+expires+'</td><td>'+status+'</td><td>'+new Date(c.created_at).toLocaleDateString('zh-CN')+'</td></tr>';
+    }).join('');
+  }).catch(function(err){showToast('❌ '+err.message)});
+}
+
+// 生成邀请码弹窗
+document.getElementById('btn-new-code').addEventListener('click',function(){
+  document.getElementById('modal-code').classList.add('show');
+});
+document.getElementById('modal-code-close').addEventListener('click',function(){
+  document.getElementById('modal-code').classList.remove('show');
+});
+document.getElementById('modal-code').addEventListener('click',function(e){
+  if(e.target===this) this.classList.remove('show');
+});
+
+document.getElementById('btn-create-code').addEventListener('click',function(){
+  var maxUses=parseInt(document.getElementById('new-max-uses').value)||1;
+  var expiresDays=parseInt(document.getElementById('new-expires-days').value)||0;
+  var note=document.getElementById('new-note').value.trim();
+
+  apiFetch('/api/codes',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({max_uses:maxUses,expires_days:expiresDays,note:note})
+  }).then(function(data){
+    showToast('✅ 邀请码已生成: '+data.code);
+    document.getElementById('modal-code').classList.remove('show');
+    document.getElementById('new-note').value='';
+    loadCodes();
+  }).catch(function(err){showToast('❌ '+err.message)});
+});
+
+// === 解析记录 ===
+var currentPage=1;
+var filterCode='';
+
+function loadRecords(){
+  var url='/api/records?page='+currentPage+'&pageSize=20';
+  if(filterCode) url+='&code='+encodeURIComponent(filterCode);
+
+  apiFetch(url).then(function(data){
+    var records=data.records||[];
+    var list=document.getElementById('records-list');
+    var empty=document.getElementById('records-empty');
+
+    if(!records.length){list.innerHTML='';empty.style.display='block';renderPagination(0);return}
+    empty.style.display='none';
+
+    list.innerHTML=records.map(function(r){
+      var title=r.result_json&&r.result_json.title?r.result_json.title:'(无标题)';
+      var filename=r.input_filename||'文本输入';
+      var time=new Date(r.created_at).toLocaleString('zh-CN');
+      return'<div class="record-item" data-id="'+r.id+'"><div class="record-title">'+escHtml(title)+'</div><div class="record-meta"><span>🎫 '+r.invitation_code+'</span><span>📄 '+escHtml(filename)+'</span><span>🕐 '+time+'</span></div></div>';
+    }).join('');
+
+    // 绑定点击事件
+    list.querySelectorAll('.record-item').forEach(function(el){
+      el.addEventListener('click',function(){showDetail(el.getAttribute('data-id'))});
+    });
+
+    renderPagination(data.total||0);
+  }).catch(function(err){showToast('❌ '+err.message)});
+}
+
+function renderPagination(total){
+  var pag=document.getElementById('pagination');
+  var totalPages=Math.ceil(total/20);
+  if(totalPages<=1){pag.innerHTML='';return}
+  var html='';
+  if(currentPage>1) html+='<span class="page-btn" data-page="'+(currentPage-1)+'">←</span>';
+  for(var i=1;i<=totalPages&&i<=7;i++){
+    html+='<span class="page-btn'+(i===currentPage?' active':'')+'" data-page="'+i+'">'+i+'</span>';
+  }
+  if(totalPages>7) html+='<span style="color:#475569">...</span><span class="page-btn" data-page="'+totalPages+'">'+totalPages+'</span>';
+  if(currentPage<totalPages) html+='<span class="page-btn" data-page="'+(currentPage+1)+'">→</span>';
+  pag.innerHTML=html;
+  pag.querySelectorAll('.page-btn').forEach(function(el){
+    el.addEventListener('click',function(){
+      currentPage=parseInt(el.getAttribute('data-page'));
+      loadRecords();
+    });
+  });
+}
+
+// 记录详情
+function showDetail(id){
+  apiFetch('/api/records?id='+id).then(function(data){
+    var content=document.getElementById('detail-content');
+    var title=data.result_json&&data.result_json.title?data.result_json.title:'(无标题)';
+    var html='<div style="margin-bottom:12px;font-size:13px;color:#64748b">';
+    html+='<div>🎫 邀请码: <strong>'+data.invitation_code+'</strong></div>';
+    html+='<div>📄 文件: '+(data.input_filename||'文本输入')+'</div>';
+    html+='<div>🕐 时间: '+new Date(data.created_at).toLocaleString('zh-CN')+'</div>';
+    html+='</div>';
+    html+='<div style="font-size:14px;font-weight:700;margin-bottom:8px">'+escHtml(title)+'</div>';
+    html+='<div class="json-view">'+escHtml(JSON.stringify(data.result_json,null,2))+'</div>';
+    content.innerHTML=html;
+    document.getElementById('modal-detail').classList.add('show');
+  }).catch(function(err){showToast('❌ '+err.message)});
+}
+
+document.getElementById('modal-detail-close').addEventListener('click',function(){
+  document.getElementById('modal-detail').classList.remove('show');
+});
+document.getElementById('modal-detail').addEventListener('click',function(e){
+  if(e.target===this) this.classList.remove('show');
+});
+
+// 筛选
+document.getElementById('btn-filter').addEventListener('click',function(){
+  filterCode=document.getElementById('filter-code').value.trim();
+  currentPage=1;
+  loadRecords();
+});
+document.getElementById('btn-clear-filter').addEventListener('click',function(){
+  document.getElementById('filter-code').value='';
+  filterCode='';
+  currentPage=1;
+  loadRecords();
+});
+
+function escHtml(s){
+  var d=document.createElement('div');d.textContent=s;return d.innerHTML;
+}
+
+// === 初始化 ===
+loadCodes();
+loadRecords();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReportViz 管理员登录</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#e2e8f0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
+.login-card{background:rgba(15,23,42,0.7);border:1px solid rgba(255,255,255,0.06);border-radius:16px;padding:40px;max-width:400px;width:100%;text-align:center}
+.login-card .icon{font-size:48px;margin-bottom:16px}
+.login-card h1{font-size:22px;font-weight:800;margin-bottom:6px;background:linear-gradient(180deg,#fff,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.login-card .desc{font-size:12px;color:#64748b;margin-bottom:28px}
+.input{width:100%;padding:13px 16px;background:rgba(15,23,42,0.9);border:1px solid rgba(255,255,255,0.1);border-radius:10px;color:#e2e8f0;font-size:14px;font-weight:500;letter-spacing:3px}
+.input:focus{outline:none;border-color:rgba(96,165,250,0.4)}
+.input::placeholder{color:#334155;letter-spacing:0;font-weight:400;font-size:13px}
+.error{font-size:11px;color:#ef4444;margin-top:10px;min-height:16px}
+.btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:0.2s;margin-top:16px}
+.btn-primary{background:linear-gradient(135deg,#3b82f6,#7c3aed);color:#fff}
+.btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 18px rgba(59,130,246,0.2)}
+.btn-primary:disabled{opacity:0.4;cursor:not-allowed}
+.back-link{display:inline-block;margin-top:20px;font-size:12px;color:#64748b;text-decoration:none;cursor:pointer}
+.back-link:hover{color:#94a3b8}
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="icon">🛡️</div>
+  <h1>管理员登录</h1>
+  <div class="desc">仅限管理员访问，请输入管理员密码</div>
+  <input class="input" id="pwd" type="password" placeholder="输入管理员密码" autocomplete="off">
+  <div class="error" id="error"></div>
+  <button class="btn btn-primary" id="btn-login">登录</button>
+  <a class="back-link" href="/">← 返回首页</a>
+</div>
+<script>
+(function(){
+"use strict";
+
+var pwdEl=document.getElementById('pwd');
+var btnEl=document.getElementById('btn-login');
+var errorEl=document.getElementById('error');
+
+// 检查是否已有 admin token
+var savedToken=null;
+try{savedToken=localStorage.getItem('rv_admin_token')}catch(e){}
+if(savedToken){
+  // 验证 token 是否有效（简单检查，跳转到后台）
+  window.location.href='/admin/records';
+}
+
+btnEl.addEventListener('click',doLogin);
+pwdEl.addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
+
+function doLogin(){
+  var pwd=pwdEl.value;
+  if(!pwd){errorEl.textContent='请输入密码';return}
+  errorEl.textContent='';
+  btnEl.disabled=true;
+  btnEl.textContent='登录中...';
+
+  fetch('/api/admin-login',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({password:pwd})
+  }).then(function(r){
+    return r.json().then(function(d){
+      if(!r.ok) throw new Error(d.error||'登录失败');
+      return d;
+    });
+  }).then(function(data){
+    try{localStorage.setItem('rv_admin_token',data.token)}catch(e){}
+    window.location.href='/admin/records';
+  }).catch(function(err){
+    errorEl.textContent=err.message;
+    btnEl.disabled=false;
+    btnEl.textContent='登录';
+  });
+}
+
+})();
+</script>
+</body>
+</html>

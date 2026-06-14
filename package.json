@@ -1,0 +1,13 @@
+{
+  "name": "reportviz-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ReportViz - 报告转高清图片，Vercel + Supabase 版",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.0",
+    "jsonwebtoken": "^9.0.2",
+    "mammoth": "^1.8.0",
+    "pdf-parse": "^1.1.1",
+    "openai": "^4.82.0"
+  }
+}

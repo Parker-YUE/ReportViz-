@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/admin/records", "destination": "/admin-records.html" },
+    { "source": "/admin", "destination": "/admin.html" },
+    { "source": "/api/:path*", "destination": "/api/:path*" },
+    { "source": "/((?!api/|admin).*)", "destination": "/index.html" }
+  ]
+}
