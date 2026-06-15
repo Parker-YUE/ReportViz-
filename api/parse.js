@@ -127,40 +127,73 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
     }
 
-    // === 评分后处理 ===
-    // 1. 查询同 hash 的历史记录，锚定评分（相似内容评分差≤3）
-    let previousScore = null;
-    if (textHash) {
-      try {
-        const { data: prevRecords } = await db
-          .from('parse_records')
-          .select('result_json')
-          .eq('input_text_hash', textHash)
-          .order('created_at', { ascending: false })
-          .limit(1);
+    // === 后处理：不依赖 AI 听话，代码层面强制保障 ===
+    if (data.sections) {
 
-        if (prevRecords && prevRecords.length > 0) {
-          const prevSections = prevRecords[0].result_json?.sections || [];
-          const prevRadar = prevSections.find(s => s.type === 'radar_score');
-          if (prevRadar && typeof prevRadar.total_score === 'number') {
-            previousScore = prevRadar.total_score;
+      // 1. 评分锚定：查询同 hash 的历史记录
+      let previousScore = null;
+      if (textHash) {
+        try {
+          const { data: prevRecords } = await db
+            .from('parse_records')
+            .select('result_json')
+            .eq('input_text_hash', textHash)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (prevRecords && prevRecords.length > 0) {
+            const prevSections = prevRecords[0].result_json?.sections || [];
+            const prevRadar = prevSections.find(s => s.type === 'radar_score');
+            if (prevRadar && typeof prevRadar.total_score === 'number') {
+              previousScore = prevRadar.total_score;
+            }
+          }
+        } catch (e) {
+          console.error('Score anchor lookup failed:', e.message);
+        }
+      }
+
+      // 2. 提取被评估人姓名（多种来源兜底）
+      let personName = null;
+      // 来源1: info_grid 中的姓名字段
+      for (const s of data.sections) {
+        if (s.type === 'info_grid' && s.items) {
+          const nameItem = s.items.find(it =>
+            ['姓名', '名字', 'Name', '被评估人', '学员', '学员姓名', '候选人'].includes(it.label)
+          );
+          if (nameItem && nameItem.value && /^[一-龥]{2,4}$/.test(nameItem.value)) {
+            personName = nameItem.value;
+            break;
           }
         }
-      } catch (e) {
-        // 查询失败不影响主流程
-        console.error('Score anchor lookup failed:', e.message);
       }
-    }
+      // 来源2: 从原文文本中提取
+      if (!personName && inputText) {
+        const namePatterns = [
+          /姓名[：:]\s*([一-龥]{2,4})/,
+          /学员[：:]\s*([一-龥]{2,4})/,
+          /被评估人[：:]\s*([一-龥]{2,4})/,
+          /候选人[：:]\s*([一-龥]{2,4})/,
+        ];
+        for (const p of namePatterns) {
+          const m = inputText.match(p);
+          if (m) { personName = m[1]; break; }
+        }
+      }
+      // 来源3: 从文件名中提取，如"报告（张三）.docx"
+      if (!personName && filename) {
+        const fnMatch = filename.match(/[（(]([一-龥]{2,4})[）)]/);
+        if (fnMatch) personName = fnMatch[1];
+      }
 
-    // 2. 对所有 radar_score section 执行评分校正
-    if (data.sections) {
+      // 3. 逐 section 修复
       data.sections = data.sections.map(function(s) {
+
+        // 3a. radar_score: 评分校正
         if (s.type === 'radar_score') {
-          // 规则1：综合评分不得低于 70
           if (typeof s.total_score === 'number' && s.total_score < 70) {
             s.total_score = 70;
           }
-          // 规则2：同内容评分波动不超过 ±3
           if (previousScore !== null && typeof s.total_score === 'number') {
             const diff = s.total_score - previousScore;
             if (Math.abs(diff) > 3) {
@@ -168,42 +201,54 @@ module.exports = async function handler(req, res) {
             }
           }
         }
-        // 规则3：track_cards 每个 level 去重，只保留首次出现的
-        if (s.type === 'track_cards' && s.tracks) {
-          const seenLevels = new Set();
-          s.tracks = s.tracks.filter(function(t) {
-            if (seenLevels.has(t.level)) return false;
-            seenLevels.add(t.level);
-            return true;
-          });
-        }
-        return s;
-      });
-    }
 
-    // 3. 人名替换：从 info_grid 提取姓名，在评述性内容中替换为"你"
-    if (data.sections) {
-      let personName = null;
-      // 从 info_grid 找姓名
-      for (const s of data.sections) {
-        if (s.type === 'info_grid' && s.items) {
-          const nameItem = s.items.find(it =>
-            it.label === '姓名' || it.label === '名字' || it.label === 'Name'
-          );
-          if (nameItem && nameItem.value && nameItem.value.length >= 2 && nameItem.value.length <= 4) {
-            personName = nameItem.value;
-            break;
+        // 3b. track_cards: 去重 + 强制替换赛道词
+        if (s.type === 'track_cards') {
+          // 去 title 中的赛道
+          if (s.title) {
+            s.title = s.title.replace(/发展赛道/g, '推荐方向').replace(/赛道/g, '方向');
+          }
+          if (s.tracks) {
+            // 去重：同 level 只保留第一个
+            const seenLevels = new Set();
+            s.tracks = s.tracks.filter(function(t) {
+              if (seenLevels.has(t.level)) return false;
+              seenLevels.add(t.level);
+              return true;
+            });
+            // 强制替换 label 中的赛道词
+            s.tracks = s.tracks.map(function(t) {
+              if (t.label) {
+                t.label = t.label.replace(/主赛道/g, '核心方向')
+                                 .replace(/副业赛道/g, '补充方向')
+                                 .replace(/高阶赛道/g, '进阶方向')
+                                 .replace(/赛道/g, '方向');
+              }
+              if (t.name) {
+                t.name = t.name.replace(/赛道/g, '方向');
+              }
+              if (t.content) {
+                t.content = t.content.replace(/赛道/g, '方向');
+              }
+              return t;
+            });
           }
         }
-      }
-      // 在非 info_grid 的文本内容中替换姓名为"你"
-      if (personName) {
-        const nameRegex = new RegExp(personName, 'g');
-        data.sections = data.sections.map(function(s) {
-          if (s.type === 'info_grid') return s; // 事实信息保持原样
-          // 递归替换对象中所有字符串值
-          return replaceNameInObj(s, nameRegex);
-        });
+
+        // 3c. 人名替换为"你"（info_grid 除外）
+        if (personName && s.type !== 'info_grid') {
+          const nameRegex = new RegExp(personName, 'g');
+          s = replaceNameInObj(s, nameRegex);
+        }
+
+        return s;
+      });
+
+      // 4. 最终保底：再扫一遍确保没有遗漏的 score < 70
+      for (const s of data.sections) {
+        if (s.type === 'radar_score' && typeof s.total_score === 'number' && s.total_score < 70) {
+          s.total_score = 70;
+        }
       }
     }
 
