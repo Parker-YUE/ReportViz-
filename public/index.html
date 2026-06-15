@@ -476,7 +476,7 @@ function buildHTML(data,c){
     else if(s.type==='track_cards'){
       var tracks=(s.tracks||[]).map(function(t){
         var isMain=t.level==='main';
-        var lbl={main:'主赛道',side:'副业赛道',advanced:'高阶赛道'}[t.level]||'赛道';
+        var lbl=t.label||{main:'核心方向',side:'补充方向',advanced:'进阶方向'}[t.level]||'方向';
         var lbg={main:c.accent,side:'#f59e0b',advanced:'#8b5cf6'}[t.level]||c.accent;
         return'<div style="border:1px solid '+(isMain?c.accent:'#e2e8f0')+';border-radius:10px;padding:16px;margin-bottom:10px;'+(isMain?'background:'+c.light:'')+'"><span style="display:inline-block;font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;margin-bottom:6px;color:#fff;background:'+lbg+'">'+lbl+'</span><div style="font-size:13px;font-weight:700;color:'+c.text+';margin-bottom:6px">'+(t.name||'')+'</div><div style="font-size:11px;color:#475569;line-height:1.7">'+(t.content||'')+'</div></div>';
       }).join('');

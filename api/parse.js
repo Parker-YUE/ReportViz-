@@ -100,7 +100,7 @@ module.exports = async function handler(req, res) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: '请解析以下报告，输出标准化JSON：\n\n' + inputText },
       ],
-      temperature: 0.3,
+      temperature: 0.1,
       max_tokens: 4000,
     });
 
@@ -125,6 +125,51 @@ module.exports = async function handler(req, res) {
 
     if (!data.title || !data.sections) {
       return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
+    }
+
+    // === 评分后处理 ===
+    // 1. 查询同 hash 的历史记录，锚定评分（相似内容评分差≤3）
+    let previousScore = null;
+    if (textHash) {
+      try {
+        const { data: prevRecords } = await db
+          .from('parse_records')
+          .select('result_json')
+          .eq('input_text_hash', textHash)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (prevRecords && prevRecords.length > 0) {
+          const prevSections = prevRecords[0].result_json?.sections || [];
+          const prevRadar = prevSections.find(s => s.type === 'radar_score');
+          if (prevRadar && typeof prevRadar.total_score === 'number') {
+            previousScore = prevRadar.total_score;
+          }
+        }
+      } catch (e) {
+        // 查询失败不影响主流程
+        console.error('Score anchor lookup failed:', e.message);
+      }
+    }
+
+    // 2. 对所有 radar_score section 执行评分校正
+    if (data.sections) {
+      data.sections = data.sections.map(function(s) {
+        if (s.type === 'radar_score') {
+          // 规则1：综合评分不得低于 70
+          if (typeof s.total_score === 'number' && s.total_score < 70) {
+            s.total_score = 70;
+          }
+          // 规则2：同内容评分波动不超过 ±3
+          if (previousScore !== null && typeof s.total_score === 'number') {
+            const diff = s.total_score - previousScore;
+            if (Math.abs(diff) > 3) {
+              s.total_score = previousScore + Math.sign(diff) * 3;
+            }
+          }
+        }
+        return s;
+      });
     }
 
     // 存记录到数据库
