@@ -168,8 +168,43 @@ module.exports = async function handler(req, res) {
             }
           }
         }
+        // 规则3：track_cards 每个 level 去重，只保留首次出现的
+        if (s.type === 'track_cards' && s.tracks) {
+          const seenLevels = new Set();
+          s.tracks = s.tracks.filter(function(t) {
+            if (seenLevels.has(t.level)) return false;
+            seenLevels.add(t.level);
+            return true;
+          });
+        }
         return s;
       });
+    }
+
+    // 3. 人名替换：从 info_grid 提取姓名，在评述性内容中替换为"你"
+    if (data.sections) {
+      let personName = null;
+      // 从 info_grid 找姓名
+      for (const s of data.sections) {
+        if (s.type === 'info_grid' && s.items) {
+          const nameItem = s.items.find(it =>
+            it.label === '姓名' || it.label === '名字' || it.label === 'Name'
+          );
+          if (nameItem && nameItem.value && nameItem.value.length >= 2 && nameItem.value.length <= 4) {
+            personName = nameItem.value;
+            break;
+          }
+        }
+      }
+      // 在非 info_grid 的文本内容中替换姓名为"你"
+      if (personName) {
+        const nameRegex = new RegExp(personName, 'g');
+        data.sections = data.sections.map(function(s) {
+          if (s.type === 'info_grid') return s; // 事实信息保持原样
+          // 递归替换对象中所有字符串值
+          return replaceNameInObj(s, nameRegex);
+        });
+      }
     }
 
     // 存记录到数据库
@@ -193,4 +228,22 @@ function loadSystemPrompt() {
   } catch {
     return '你是报告解析专家。将报告解析为JSON。只输出JSON。';
   }
+}
+
+// 递归替换对象中所有字符串值里的人名
+function replaceNameInObj(obj, regex) {
+  if (typeof obj === 'string') {
+    return obj.replace(regex, '你');
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => replaceNameInObj(item, regex));
+  }
+  if (obj && typeof obj === 'object') {
+    const result = {};
+    for (const key of Object.keys(obj)) {
+      result[key] = replaceNameInObj(obj[key], regex);
+    }
+    return result;
+  }
+  return obj;
 }
