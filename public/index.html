@@ -449,6 +449,7 @@ function downloadPNG(){
 
 // === HTML 构建（与原项目一致） ===
 function buildHTML(data,c){
+  data=sanitizeForRender(data);
   var secs='',num=1;
   var ss=data.sections||[];
   for(var i=0;i<ss.length;i++){
@@ -504,6 +505,88 @@ function buildHTML(data,c){
   if(meta.date&&meta.date!=='—') metaHtml+='<span>📅 '+meta.date+'</span>';
   if(meta.duration&&meta.duration!=='—') metaHtml+='<span>⏱️ '+meta.duration+'</span>';
   return'<div style="background:#f0f4f8;padding:28px 20px;font-family:-apple-system,BlinkMacSystemFont,PingFang SC,Microsoft YaHei,sans-serif;color:#1a202c;line-height:1.7"><div style="max-width:840px;margin:0 auto"><div style="background:'+c.bg+';border-radius:16px;padding:38px 30px;color:#fff;margin-bottom:22px"><h1 style="font-size:24px;font-weight:800;margin:0 0 4px 0">'+(data.title||'报告')+'</h1><div style="font-size:12px;opacity:0.7;margin-bottom:14px">'+(data.subtitle||'')+'</div><div style="display:flex;gap:16px;font-size:11px;opacity:0.8;margin-bottom:10px">'+metaHtml+'</div><div style="display:flex;gap:6px;flex-wrap:wrap">'+badges+'</div></div>'+secs+'<div style="text-align:center;padding:14px 0;font-size:10px;color:#94a3b8">'+(data.title||'')+' · ReportViz</div></div></div>';
+}
+
+function sanitizeForRender(data){
+  if(!data)return data;
+  var cloned=JSON.parse(JSON.stringify(data));
+  var personName=getPersonNameFromData(cloned);
+  cloned=replaceNameOutsideInfo(cloned,personName,false);
+  cloned=replaceTrackWordsDeep(cloned);
+  (cloned.sections||[]).forEach(function(s){
+    if(s.type==='radar_score'){
+      s.total_score=clampDisplayScore(s.total_score);
+      (s.dimensions||[]).forEach(function(d){d.score=clampDisplayScore(d.score)});
+    }
+    if(s.type==='track_cards'&&s.tracks){
+      var seen={};
+      s.tracks=s.tracks.filter(function(t){
+        var level=t.level||'';
+        if(seen[level])return false;
+        seen[level]=true;
+        return true;
+      }).map(function(t){
+        t.label=replaceTrackWords(t.label||{main:'核心方向',side:'补充方向',advanced:'进阶方向'}[t.level]||'方向');
+        t.name=replaceTrackWords(t.name||'');
+        t.content=replaceTrackWords(t.content||'');
+        return t;
+      });
+    }
+  });
+  return cloned;
+}
+
+function getPersonNameFromData(data){
+  var ss=data.sections||[];
+  for(var i=0;i<ss.length;i++){
+    var s=ss[i];
+    if(s.type==='info_grid'&&s.items){
+      for(var j=0;j<s.items.length;j++){
+        var it=s.items[j],label=(it.label||'').trim(),value=(it.value||'').trim();
+        if(['姓名','名字','Name','被评估人','学员','学员姓名','候选人'].indexOf(label)!==-1&&/^[\u4e00-\u9fa5]{2,4}$/.test(value)){
+          return value;
+        }
+      }
+    }
+  }
+  return '';
+}
+
+function replaceNameOutsideInfo(value,name,insideInfo){
+  if(!name)return value;
+  if(typeof value==='string')return insideInfo?value:value.split(name).join('你');
+  if(Array.isArray(value))return value.map(function(x){return replaceNameOutsideInfo(x,name,insideInfo)});
+  if(value&&typeof value==='object'){
+    var next={},isInfo=insideInfo||value.type==='info_grid';
+    Object.keys(value).forEach(function(k){next[k]=replaceNameOutsideInfo(value[k],name,isInfo)});
+    return next;
+  }
+  return value;
+}
+
+function replaceTrackWordsDeep(value){
+  if(typeof value==='string')return replaceTrackWords(value);
+  if(Array.isArray(value))return value.map(replaceTrackWordsDeep);
+  if(value&&typeof value==='object'){
+    Object.keys(value).forEach(function(k){value[k]=replaceTrackWordsDeep(value[k])});
+  }
+  return value;
+}
+
+function replaceTrackWords(text){
+  if(typeof text!=='string')return text;
+  return text.replace(/主赛道/g,'核心方向')
+    .replace(/副业赛道/g,'补充方向')
+    .replace(/高阶赛道/g,'进阶方向')
+    .replace(/发展赛道/g,'发展方向')
+    .replace(/赛道/g,'方向');
+}
+
+function clampDisplayScore(value){
+  var score=Number(value);
+  if(!isFinite(score))score=70;
+  score=Math.round(score);
+  return score<70?70:score;
 }
 
 function buildRadar(dims,c){

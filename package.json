@@ -2,6 +2,9 @@
   "name": "reportviz-vercel",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "test": "node tests/result-sanitizer.test.js"
+  },
   "description": "ReportViz - 报告转高清图片，Vercel + Supabase 版",
   "dependencies": {
     "@supabase/supabase-js": "^2.49.0",

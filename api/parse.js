@@ -4,6 +4,7 @@ const { parseFile, sha256 } = require('../lib/file-parser');
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
+const { sanitizeResult } = require('../lib/result-sanitizer');
 
 // 每个邀请码每天最多调用次数
 const DAILY_LIMIT = 30;
@@ -127,130 +128,8 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
     }
 
-    // === 后处理：不依赖 AI 听话，代码层面强制保障 ===
-    if (data.sections) {
-
-      // 1. 评分锚定：查询同 hash 的历史记录
-      let previousScore = null;
-      if (textHash) {
-        try {
-          const { data: prevRecords } = await db
-            .from('parse_records')
-            .select('result_json')
-            .eq('input_text_hash', textHash)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (prevRecords && prevRecords.length > 0) {
-            const prevSections = prevRecords[0].result_json?.sections || [];
-            const prevRadar = prevSections.find(s => s.type === 'radar_score');
-            if (prevRadar && typeof prevRadar.total_score === 'number') {
-              previousScore = prevRadar.total_score;
-            }
-          }
-        } catch (e) {
-          console.error('Score anchor lookup failed:', e.message);
-        }
-      }
-
-      // 2. 提取被评估人姓名（多种来源兜底）
-      let personName = null;
-      // 来源1: info_grid 中的姓名字段
-      for (const s of data.sections) {
-        if (s.type === 'info_grid' && s.items) {
-          const nameItem = s.items.find(it =>
-            ['姓名', '名字', 'Name', '被评估人', '学员', '学员姓名', '候选人'].includes(it.label)
-          );
-          if (nameItem && nameItem.value && /^[一-龥]{2,4}$/.test(nameItem.value)) {
-            personName = nameItem.value;
-            break;
-          }
-        }
-      }
-      // 来源2: 从原文文本中提取
-      if (!personName && inputText) {
-        const namePatterns = [
-          /姓名[：:]\s*([一-龥]{2,4})/,
-          /学员[：:]\s*([一-龥]{2,4})/,
-          /被评估人[：:]\s*([一-龥]{2,4})/,
-          /候选人[：:]\s*([一-龥]{2,4})/,
-        ];
-        for (const p of namePatterns) {
-          const m = inputText.match(p);
-          if (m) { personName = m[1]; break; }
-        }
-      }
-      // 来源3: 从文件名中提取，如"报告（张三）.docx"
-      if (!personName && filename) {
-        const fnMatch = filename.match(/[（(]([一-龥]{2,4})[）)]/);
-        if (fnMatch) personName = fnMatch[1];
-      }
-
-      // 3. 逐 section 修复
-      data.sections = data.sections.map(function(s) {
-
-        // 3a. radar_score: 评分校正
-        if (s.type === 'radar_score') {
-          if (typeof s.total_score === 'number' && s.total_score < 70) {
-            s.total_score = 70;
-          }
-          if (previousScore !== null && typeof s.total_score === 'number') {
-            const diff = s.total_score - previousScore;
-            if (Math.abs(diff) > 3) {
-              s.total_score = previousScore + Math.sign(diff) * 3;
-            }
-          }
-        }
-
-        // 3b. track_cards: 去重 + 强制替换赛道词
-        if (s.type === 'track_cards') {
-          // 去 title 中的赛道
-          if (s.title) {
-            s.title = s.title.replace(/发展赛道/g, '推荐方向').replace(/赛道/g, '方向');
-          }
-          if (s.tracks) {
-            // 去重：同 level 只保留第一个
-            const seenLevels = new Set();
-            s.tracks = s.tracks.filter(function(t) {
-              if (seenLevels.has(t.level)) return false;
-              seenLevels.add(t.level);
-              return true;
-            });
-            // 强制替换 label 中的赛道词
-            s.tracks = s.tracks.map(function(t) {
-              if (t.label) {
-                t.label = t.label.replace(/主赛道/g, '核心方向')
-                                 .replace(/副业赛道/g, '补充方向')
-                                 .replace(/高阶赛道/g, '进阶方向')
-                                 .replace(/赛道/g, '方向');
-              }
-              if (t.name) {
-                t.name = t.name.replace(/赛道/g, '方向');
-              }
-              if (t.content) {
-                t.content = t.content.replace(/赛道/g, '方向');
-              }
-              return t;
-            });
-          }
-        }
-
-        // 3c. 人名替换为"你"（info_grid 除外）
-        if (personName && s.type !== 'info_grid') {
-          const nameRegex = new RegExp(personName, 'g');
-          s = replaceNameInObj(s, nameRegex);
-        }
-
-        return s;
-      });
-
-      // 4. 最终保底：再扫一遍确保没有遗漏的 score < 70
-      for (const s of data.sections) {
-        if (s.type === 'radar_score' && typeof s.total_score === 'number' && s.total_score < 70) {
-          s.total_score = 70;
-        }
-      }
-    }
+    const previousScore = await findPreviousScore(db, textHash);
+    data = sanitizeResult(data, { inputText, filename, previousScore });
 
     // 存记录到数据库
     await db.from('parse_records').insert({
@@ -275,20 +154,23 @@ function loadSystemPrompt() {
   }
 }
 
-// 递归替换对象中所有字符串值里的人名
-function replaceNameInObj(obj, regex) {
-  if (typeof obj === 'string') {
-    return obj.replace(regex, '你');
+async function findPreviousScore(db, textHash) {
+  if (!textHash) return null;
+  try {
+    const { data: prevRecords } = await db
+      .from('parse_records')
+      .select('result_json')
+      .eq('input_text_hash', textHash)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (!prevRecords || prevRecords.length === 0) return null;
+
+    const prevSections = prevRecords[0].result_json?.sections || [];
+    const prevRadar = prevSections.find(s => s.type === 'radar_score');
+    return typeof prevRadar?.total_score === 'number' ? prevRadar.total_score : null;
+  } catch (e) {
+    console.error('Score anchor lookup failed:', e.message);
+    return null;
   }
-  if (Array.isArray(obj)) {
-    return obj.map(item => replaceNameInObj(item, regex));
-  }
-  if (obj && typeof obj === 'object') {
-    const result = {};
-    for (const key of Object.keys(obj)) {
-      result[key] = replaceNameInObj(obj[key], regex);
-    }
-    return result;
-  }
-  return obj;
 }
