@@ -283,11 +283,16 @@ function showDetail(id){
     html+='</div>';
     html+='<div style="font-size:14px;font-weight:700;margin-bottom:8px">'+escHtml(title)+'</div>';
     html+='<div style="margin-bottom:12px">';
-    html+='<button class="btn btn-primary btn-sm" style="margin-right:8px" onclick="downloadAttachment(\''+data.id+'\',\'input\')">📥 下载原始文件</button>';
-    html+='<button class="btn btn-success btn-sm" onclick="downloadAttachment(\''+data.id+'\',\'png\')">🖼️ 下载 PNG</button>';
+    html+='<button class="btn btn-primary btn-sm" style="margin-right:8px" data-attach="input">📥 下载原始文件</button>';
+    html+='<button class="btn btn-success btn-sm" data-attach="png">🖼️ 下载 PNG</button>';
     html+='</div>';
     html+='<div class="json-view">'+escHtml(JSON.stringify(data.result_json,null,2))+'</div>';
     content.innerHTML=html;
+    content.querySelectorAll('[data-attach]').forEach(function(btn){
+      btn.addEventListener('click',function(){
+        downloadAttachment(data.id, btn.getAttribute('data-attach'));
+      });
+    });
     document.getElementById('modal-detail').classList.add('show');
   }).catch(function(err){showToast('❌ '+err.message)});
 }
