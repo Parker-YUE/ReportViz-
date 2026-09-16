@@ -163,15 +163,16 @@ module.exports = async function handler(req, res) {
       return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
     }
 
-    // 上传原始输入到 Storage（失败不阻断返回）
-    try {
-      if (rawBuffer) {
-        await uploadInput(inserted.id, rawBuffer, rawMime);
-      } else if (rawText) {
-        await uploadText(inserted.id, rawText);
-      }
-    } catch (err) {
-      console.error('Upload input attachment error:', err.message);
+    // 上传原始输入到 Storage（后台异步，不阻塞响应；失败静默不阻断）
+    // 注：Vercel Hobby 10s 超时，上传改为 fire-and-forget，让响应尽快返回
+    if (rawBuffer) {
+      uploadInput(inserted.id, rawBuffer, rawMime).catch((err) => {
+        console.error('Upload input attachment error:', err.message);
+      });
+    } else if (rawText) {
+      uploadText(inserted.id, rawText).catch((err) => {
+        console.error('Upload input attachment error:', err.message);
+      });
     }
 
     return res.status(200).json({ ...data, record_id: inserted.id });
