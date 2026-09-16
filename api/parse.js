@@ -5,9 +5,18 @@ const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 const { sanitizeResult } = require('../lib/result-sanitizer');
+const { uploadInput, uploadText } = require('../lib/storage');
 
 // 每个邀请码每天最多调用次数
 const DAILY_LIMIT = 30;
+
+// 文件类型 → MIME（用于 Storage 上传）
+const MIME = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  doc: 'application/msword',
+  txt: 'text/plain',
+};
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -38,6 +47,9 @@ module.exports = async function handler(req, res) {
   let inputText = '';
   let filename = null;
   let textHash = '';
+  let rawBuffer = null;   // 原始文件字节（用于保存附件）
+  let rawText = '';       // 原始文本（截断前，用于保存附件）
+  let rawMime = null;
 
   const contentType = req.headers['content-type'] || '';
 
@@ -68,11 +80,14 @@ module.exports = async function handler(req, res) {
       inputText = result.text;
       textHash = result.hash;
       filename = fname;
+      rawBuffer = buffer;
+      rawMime = MIME[ext] || 'application/octet-stream';
     } catch (err) {
       return res.status(400).json({ error: err.message });
     }
   } else if (text && text.trim()) {
     inputText = text.trim();
+    rawText = inputText;
     textHash = sha256(inputText);
   } else {
     return res.status(400).json({ error: '请上传文件或输入文本' });
@@ -132,14 +147,34 @@ module.exports = async function handler(req, res) {
     data = sanitizeResult(data, { inputText, filename, previousScore });
 
     // 存记录到数据库
-    await db.from('parse_records').insert({
-      invitation_code: auth.code,
-      input_filename: filename,
-      input_text_hash: textHash,
-      result_json: data,
-    });
+    const { data: inserted, error: insertError } = await db
+      .from('parse_records')
+      .insert({
+        invitation_code: auth.code,
+        input_filename: filename,
+        input_text_hash: textHash,
+        result_json: data,
+      })
+      .select()
+      .single();
 
-    return res.status(200).json(data);
+    if (insertError) {
+      console.error('Insert record error:', insertError.message);
+      return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
+    }
+
+    // 上传原始输入到 Storage（失败不阻断返回）
+    try {
+      if (rawBuffer) {
+        await uploadInput(inserted.id, rawBuffer, rawMime);
+      } else if (rawText) {
+        await uploadText(inserted.id, rawText);
+      }
+    } catch (err) {
+      console.error('Upload input attachment error:', err.message);
+    }
+
+    return res.status(200).json({ ...data, record_id: inserted.id });
   } catch (err) {
     console.error('AI parse error:', err.message);
     return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });

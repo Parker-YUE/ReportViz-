@@ -282,9 +282,34 @@ function showDetail(id){
     html+='<div>🕐 时间: '+new Date(data.created_at).toLocaleString('zh-CN')+'</div>';
     html+='</div>';
     html+='<div style="font-size:14px;font-weight:700;margin-bottom:8px">'+escHtml(title)+'</div>';
+    html+='<div style="margin-bottom:12px">';
+    html+='<button class="btn btn-primary btn-sm" style="margin-right:8px" onclick="downloadAttachment(\''+data.id+'\',\'input\')">📥 下载原始文件</button>';
+    html+='<button class="btn btn-success btn-sm" onclick="downloadAttachment(\''+data.id+'\',\'png\')">🖼️ 下载 PNG</button>';
+    html+='</div>';
     html+='<div class="json-view">'+escHtml(JSON.stringify(data.result_json,null,2))+'</div>';
     content.innerHTML=html;
     document.getElementById('modal-detail').classList.add('show');
+  }).catch(function(err){showToast('❌ '+err.message)});
+}
+
+// 下载附件（带 admin token，用 blob 触发下载）
+function downloadAttachment(recordId, type){
+  fetch('/api/attachment?record_id='+encodeURIComponent(recordId)+'&type='+type,{
+    headers:{'Authorization':'Bearer '+adminToken}
+  }).then(function(r){
+    if(!r.ok){
+      return r.json().then(function(d){throw new Error(d.error||'下载失败')});
+    }
+    var disp=r.headers.get('Content-Disposition')||'';
+    var filename='download';
+    var m=disp.match(/filename\*=UTF-8''(.+)/i);
+    if(m){try{filename=decodeURIComponent(m[1])}catch(e){}}
+    return r.blob().then(function(blob){
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');a.href=url;a.download=filename;
+      document.body.appendChild(a);a.click();document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url)},2000);
+    });
   }).catch(function(err){showToast('❌ '+err.message)});
 }
 

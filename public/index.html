@@ -439,6 +439,20 @@ function downloadPNG(){
         setTimeout(function(){URL.revokeObjectURL(url)},2000);
         overlayEl.classList.remove('show');
         showToast('✅ 已下载（'+canvas.width+'x'+canvas.height+'px）');
+
+        // 顺带把 PNG 上传保存到后台（失败静默，不阻断本地下载）
+        if(parsed.record_id){
+          var fr=new FileReader();
+          fr.onload=function(){
+            var b64=fr.result.split(',')[1];
+            fetch('/api/attachment',{
+              method:'POST',
+              headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+              body:JSON.stringify({record_id:parsed.record_id,data_base64:b64})
+            }).catch(function(){});
+          };
+          fr.readAsDataURL(blob);
+        }
       },'image/png',1.0);
     }).catch(function(err){
       renderTarget.style.left='-9999px';renderTarget.style.opacity='0';
