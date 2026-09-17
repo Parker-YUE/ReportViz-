@@ -1,5 +1,5 @@
 const { getDB } = require('../lib/db');
-const { requireUserToken } = require('../lib/jwt');
+const { requireUserToken, verifyUploadTicket } = require('../lib/jwt');
 const { parseFile, sha256 } = require('../lib/file-parser');
 const fs = require('fs');
 const path = require('path');
@@ -12,14 +12,19 @@ const {
   sanitizeResult,
 } = require('../lib/result-sanitizer');
 const { buildSystemPrompt } = require('../lib/prompt-builder');
-const { uploadInput, uploadText } = require('../lib/storage');
+const {
+  downloadInput,
+  removeInput,
+  uploadInput,
+  uploadText,
+} = require('../lib/storage');
 const {
   getSafeErrorDetails,
   isTransientAIError,
   parseModelResponse,
   withTransientRetry,
 } = require('../lib/ai-response');
-const { validateFilePayload } = require('../lib/upload-validation');
+const { validateFilePayload, validateStoredFile } = require('../lib/upload-validation');
 
 // 每个邀请码每天最多调用次数
 const DAILY_LIMIT = 30;
@@ -81,6 +86,8 @@ module.exports = async function handler(req, res) {
       .eq('invitation_code', auth.code)
       .gte('created_at', today.toISOString());
   } catch (error) {
+    const pendingTicket = verifyUploadTicket(req.body?.upload_ticket, auth.code);
+    if (pendingTicket) await bestEffortRemoveInput(pendingTicket.path, log);
     log('rate_limit_failed', { error: getSafeErrorDetails(error) });
     return res.status(502).json({
       error: '数据服务暂时不可用，请稍后重试',
@@ -90,6 +97,8 @@ module.exports = async function handler(req, res) {
   }
 
   if (rateLimitResult.error) {
+    const pendingTicket = verifyUploadTicket(req.body?.upload_ticket, auth.code);
+    if (pendingTicket) await bestEffortRemoveInput(pendingTicket.path, log);
     log('rate_limit_failed', { error: getSafeErrorDetails(rateLimitResult.error) });
     return res.status(502).json({
       error: '数据服务暂时不可用，请稍后重试',
@@ -101,6 +110,8 @@ module.exports = async function handler(req, res) {
   const count = rateLimitResult.count || 0;
 
   if (count >= DAILY_LIMIT) {
+    const pendingTicket = verifyUploadTicket(req.body?.upload_ticket, auth.code);
+    if (pendingTicket) await bestEffortRemoveInput(pendingTicket.path, log);
     return res.status(429).json({ error: '请求过于频繁，请明天再试' });
   }
 
@@ -111,6 +122,10 @@ module.exports = async function handler(req, res) {
   let rawBuffer = null;   // 原始文件字节（用于保存附件）
   let rawText = '';       // 原始文本（截断前，用于保存附件）
   let rawMime = null;
+  let directUploadPath = null;
+  let directRecordId = null;
+  let inputAlreadyStored = false;
+  let recordInserted = false;
 
   const contentType = req.headers['content-type'] || '';
 
@@ -121,9 +136,76 @@ module.exports = async function handler(req, res) {
   }
 
   // JSON 模式
-  const { text, file_base64, filename: fname } = req.body || {};
+  const {
+    text,
+    file_base64,
+    filename: fname,
+    upload_ticket: uploadTicketToken,
+  } = req.body || {};
 
-  if (file_base64 && fname) {
+  if (uploadTicketToken) {
+    const ticket = verifyUploadTicket(uploadTicketToken, auth.code);
+    if (!ticket) {
+      return res.status(401).json({
+        error: '上传凭证无效或已过期，请重新选择文件',
+        request_id: requestId,
+      });
+    }
+
+    directUploadPath = ticket.path;
+    directRecordId = ticket.recordId;
+    try {
+      const { data: existingRecord, error: existingRecordError } = await db
+        .from('parse_records')
+        .select('id')
+        .eq('id', directRecordId)
+        .eq('invitation_code', auth.code)
+        .maybeSingle();
+      if (existingRecordError) throw existingRecordError;
+      if (existingRecord) {
+        return res.status(409).json({
+          error: '该文件已经生成过报告，请重新选择文件',
+          request_id: requestId,
+        });
+      }
+
+      let buffer;
+      try {
+        buffer = await downloadInput(directUploadPath);
+      } catch (cause) {
+        const error = new Error('读取上传文件失败');
+        error.code = 'DIRECT_UPLOAD_READ_FAILED';
+        error.cause = cause;
+        throw error;
+      }
+      const { ext } = validateStoredFile(buffer, ticket.filename, ticket.size);
+      let result;
+      try {
+        result = await parseFile(buffer, ticket.filename);
+      } catch (cause) {
+        const error = new Error('文件内容无法解析，请确认文件未损坏');
+        error.code = 'FILE_PARSE_ERROR';
+        error.status = 400;
+        error.cause = cause;
+        throw error;
+      }
+      inputText = result.text;
+      textHash = result.hash;
+      filename = ticket.filename;
+      rawBuffer = buffer;
+      rawMime = MIME[ext] || 'application/octet-stream';
+      inputAlreadyStored = true;
+    } catch (error) {
+      await bestEffortRemoveInput(directUploadPath, log);
+      const clientError = error.code === 'INVALID_UPLOAD' || error.code === 'FILE_PARSE_ERROR';
+      log('direct_upload_rejected', { error: getSafeErrorDetails(error) });
+      return res.status(clientError ? error.status : 502).json({
+        error: clientError ? error.message : '读取上传文件失败，请重新上传',
+        request_id: requestId,
+        retryable: !clientError,
+      });
+    }
+  } else if (file_base64 && fname) {
     try {
       const { buffer, ext } = validateFilePayload(file_base64, fname);
       const result = await parseFile(buffer, fname);
@@ -144,6 +226,7 @@ module.exports = async function handler(req, res) {
   }
 
   if (inputText.length < 30) {
+    await bestEffortRemoveInput(directUploadPath, log);
     return res.status(400).json({ error: '报告内容不足，请提供更完整的文本' });
   }
 
@@ -151,7 +234,10 @@ module.exports = async function handler(req, res) {
   if (inputText.length > 15000) {
     inputText = inputText.slice(0, 15000);
   }
-  log('input_ready', { mode: rawBuffer ? 'file' : 'text', input_chars: inputText.length });
+  log('input_ready', {
+    mode: rawBuffer ? (inputAlreadyStored ? 'direct_file' : 'legacy_file') : 'text',
+    input_chars: inputText.length,
+  });
 
   // 调用 DeepSeek AI
   try {
@@ -197,6 +283,7 @@ module.exports = async function handler(req, res) {
     let data = parseModelResponse(resp);
 
     if (!data.title || !Array.isArray(data.sections)) {
+      await bestEffortRemoveInput(directUploadPath, log);
       return res.status(502).json({
         error: 'AI 返回的报告结构不完整，请稍后重试',
         request_id: requestId,
@@ -215,18 +302,22 @@ module.exports = async function handler(req, res) {
     assertScoredResult(data, reportMode);
 
     // 存记录到数据库
+    const recordToInsert = {
+      invitation_code: auth.code,
+      input_filename: filename,
+      input_text_hash: textHash,
+      result_json: data,
+    };
+    if (directRecordId) recordToInsert.id = directRecordId;
+
     const { data: inserted, error: insertError } = await db
       .from('parse_records')
-      .insert({
-        invitation_code: auth.code,
-        input_filename: filename,
-        input_text_hash: textHash,
-        result_json: data,
-      })
+      .insert(recordToInsert)
       .select()
       .single();
 
     if (insertError) {
+      await bestEffortRemoveInput(directUploadPath, log);
       log('record_insert_failed', { error: getSafeErrorDetails(insertError) });
       return res.status(502).json({
         error: '报告已生成，但保存失败，请稍后重试',
@@ -234,10 +325,11 @@ module.exports = async function handler(req, res) {
         retryable: true,
       });
     }
+    recordInserted = true;
     log('record_inserted', { record_id: inserted.id });
 
     // 使用 Vercel 官方生命周期机制完成非关键附件上传，不阻塞响应。
-    const uploadTask = rawBuffer
+    const uploadTask = rawBuffer && !inputAlreadyStored
       ? uploadInput(inserted.id, rawBuffer, rawMime)
       : (rawText ? uploadText(inserted.id, rawText) : null);
     if (uploadTask) {
@@ -252,6 +344,9 @@ module.exports = async function handler(req, res) {
     log('request_succeeded', { record_id: inserted.id });
     return res.status(200).json({ ...data, record_id: inserted.id });
   } catch (err) {
+    if (directUploadPath && !recordInserted) {
+      await bestEffortRemoveInput(directUploadPath, log);
+    }
     if (err.code === 'INVALID_SCORED_RESULT') {
       log('request_failed', { retryable: true, error: getSafeErrorDetails(err) });
       return res.status(502).json({
@@ -307,5 +402,15 @@ async function findPreviousScore(db, textHash) {
   } catch (e) {
     console.error('Score anchor lookup failed:', e.message);
     return null;
+  }
+}
+
+async function bestEffortRemoveInput(inputPath, log) {
+  if (!inputPath) return;
+  try {
+    await removeInput(inputPath);
+    log('direct_upload_removed');
+  } catch (error) {
+    log('direct_upload_remove_failed', { error: getSafeErrorDetails(error) });
   }
 }
