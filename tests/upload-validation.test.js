@@ -5,6 +5,7 @@ const {
   MAX_FILE_BYTES,
   MIME_BY_EXTENSION,
   validateFilePayload,
+  validatePngBuffer,
   validateStoredFile,
   validateUploadMetadata,
 } = require('../lib/upload-validation');
@@ -91,6 +92,13 @@ assert.throws(
 assert.throws(
   () => validateStoredFile(Buffer.from('%PDF-1.7'), 'report.pdf', 999),
   err => err.status === 400 && err.message.includes('大小')
+);
+
+const validPng = Buffer.from('89504e470d0a1a0a00000000', 'hex');
+assert.strictEqual(validatePngBuffer(validPng), validPng);
+assert.throws(
+  () => validatePngBuffer(Buffer.from('<script>alert(1)</script>')),
+  err => err.status === 400 && err.message.includes('PNG')
 );
 
 console.log('上传载荷限制测试通过');

@@ -1,6 +1,11 @@
 const { getDB } = require('../lib/db');
 const { requireUserToken, requireAdminToken } = require('../lib/jwt');
 const { uploadPng, downloadFile } = require('../lib/storage');
+const {
+  decodeBase64Payload,
+  MAX_FILE_BYTES,
+  validatePngBuffer,
+} = require('../lib/upload-validation');
 
 module.exports = async function handler(req, res) {
   // POST /api/attachment - 用户下载 PNG 时上传保存
@@ -29,12 +34,14 @@ module.exports = async function handler(req, res) {
     }
 
     try {
-      const buffer = Buffer.from(data_base64, 'base64');
+      const buffer = validatePngBuffer(decodeBase64Payload(data_base64, MAX_FILE_BYTES));
       await uploadPng(record_id, buffer);
       return res.status(200).json({ ok: true });
     } catch (err) {
       console.error('Upload PNG error:', err.message);
-      return res.status(500).json({ error: '图片保存失败' });
+      return res.status(err.status || 500).json({
+        error: err.status === 413 ? '图片超过 3MB，无法保存到后台' : '图片保存失败',
+      });
     }
   }
 
@@ -80,6 +87,9 @@ module.exports = async function handler(req, res) {
 
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Content-Security-Policy', 'sandbox');
     return res.status(200).send(file.buffer);
   }
 
