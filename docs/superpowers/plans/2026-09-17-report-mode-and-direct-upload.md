@@ -20,6 +20,8 @@
 - Upload tickets bind invitation code, storage path, record ID, filename, declared size, and MIME type.
 - No database schema or new environment variable is introduced.
 - Contact copy is exactly `咨询及合作｜微信：allen20255`.
+- Core flows support current Windows Edge/Chrome, macOS Safari/Chrome, iPhone Safari, and Android Chrome; decorative effects may degrade without blocking use.
+- Production is blocked by any confirmed high-severity dependency vulnerability, leaked secret, executable upload path, unsafe dynamic HTML, or cross-invitation access.
 
 ---
 
@@ -311,6 +313,8 @@ Run: `npm test`
 
 Compile `public/index.html`, `public/admin.html`, and `public/admin-records.html` inline scripts with `vm.Script`.
 
+Also inspect browser code for Safari-incompatible APIs and verify the responsive layout at representative desktop, iPhone, and Android viewport sizes.
+
 - [ ] **Step 8: Commit task files**
 
 ```bash
@@ -345,9 +349,13 @@ Run: `npm audit --audit-level=high`
 
 Run: `git diff --check`
 
+Scan tracked source and the production build/deployment inputs for accidental API keys or service-role tokens without printing any secret values. Review all dynamic HTML sinks and attachment responses.
+
 - [ ] **Step 3: Run local Vercel and browser verification**
 
 Verify login renders, contact is visible, ordinary mode is selected, scored note is visible after selection, a small file uploads directly, and an 11MB file is rejected before upload.
+
+Run the flow in available Chromium/WebKit browser engines at desktop and mobile viewport sizes. Record any environment limitation where a physical Windows/macOS/iPhone/Android device cannot be exercised locally.
 
 - [ ] **Step 4: Inspect the authorized Storage bucket configuration without printing secrets**
 
