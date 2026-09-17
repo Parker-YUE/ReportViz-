@@ -7,7 +7,7 @@ module.exports = async function handler(req, res) {
   }
 
   const { code } = req.body || {};
-  if (!code || !code.trim()) {
+  if (typeof code !== 'string' || !code.trim()) {
     return res.status(400).json({ error: '请输入邀请码' });
   }
 
@@ -35,10 +35,15 @@ module.exports = async function handler(req, res) {
   }
 
   // 增加使用次数
-  await db
+  const { error: updateError } = await db
     .from('invitation_codes')
     .update({ used_count: invite.used_count + 1 })
     .eq('id', invite.id);
+
+  if (updateError) {
+    console.error('Invitation usage update failed:', updateError.message);
+    return res.status(502).json({ error: '验证服务暂时不可用，请稍后重试' });
+  }
 
   // 生成 token
   const token = createUserToken(invite.code);

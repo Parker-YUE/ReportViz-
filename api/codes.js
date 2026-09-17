@@ -14,21 +14,23 @@ module.exports = async function handler(req, res) {
   // POST /api/codes - 生成新邀请码
   if (req.method === 'POST') {
     const { max_uses = 1, expires_days = 90, note = '' } = req.body || {};
+    const normalizedNote = typeof note === 'string' ? note.trim() : '';
+    const parsedExpiresDays = Number.parseInt(expires_days, 10);
 
     // 生成邀请码：RV- + 6位随机字符
     const code = 'RV-' + crypto.randomBytes(3).toString('hex').toUpperCase();
 
-    const expiresAt = expires_days > 0
-      ? new Date(Date.now() + expires_days * 86400000).toISOString()
+    const expiresAt = parsedExpiresDays > 0
+      ? new Date(Date.now() + Math.min(parsedExpiresDays, 3650) * 86400000).toISOString()
       : null;
 
     const { data, error } = await db
       .from('invitation_codes')
       .insert({
         code,
-        max_uses: Math.max(1, parseInt(max_uses) || 1),
+        max_uses: Math.min(10000, Math.max(1, Number.parseInt(max_uses, 10) || 1)),
         expires_at: expiresAt,
-        note: note.slice(0, 100),
+        note: normalizedNote.slice(0, 100),
       })
       .select()
       .single();
