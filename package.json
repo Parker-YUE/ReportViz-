@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "node tests/result-sanitizer.test.js && node tests/prompt-builder.test.js && node tests/ai-response.test.js && node tests/file-parser.test.js && node tests/upload-validation.test.js && node tests/safe-html.test.js"
+    "test": "node tests/result-sanitizer.test.js && node tests/prompt-builder.test.js && node tests/ai-response.test.js && node tests/file-parser.test.js && node tests/upload-validation.test.js && node tests/upload-ticket.test.js && node tests/safe-html.test.js"
   },
   "description": "ReportViz - 报告转高清图片，Vercel + Supabase 版",
   "dependencies": {
