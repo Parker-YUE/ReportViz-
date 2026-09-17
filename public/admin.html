@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
 <title>ReportViz 管理员登录</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -64,8 +66,11 @@ function doLogin(){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({password:pwd})
   }).then(function(r){
-    return r.json().then(function(d){
-      if(!r.ok) throw new Error(d.error||'登录失败');
+    return r.text().then(function(text){
+      var d={};
+      if(text){try{d=JSON.parse(text)}catch(e){}}
+      if(!r.ok) throw new Error(d.error||('登录失败（HTTP '+r.status+'）'));
+      if(!text)throw new Error('服务器返回了空响应');
       return d;
     });
   }).then(function(data){

@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
 <title>ReportViz 管理后台</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -135,6 +137,7 @@ tr:hover td{background:rgba(255,255,255,0.02)}
 
 <div class="toast" id="toast"></div>
 
+<script src="/safe-html.js"></script>
 <script>
 (function(){
 "use strict";
@@ -159,7 +162,13 @@ function apiFetch(url,opts){
       window.location.href='/admin';
       return Promise.reject(new Error('登录已过期'));
     }
-    return r.json().then(function(d){if(!r.ok) throw new Error(d.error||'请求失败');return d});
+    return r.text().then(function(text){
+      var d={};
+      if(text){try{d=JSON.parse(text)}catch(e){}}
+      if(!r.ok)throw new Error(d.error||('请求失败（HTTP '+r.status+'）'));
+      if(!text)throw new Error('服务器返回了空响应');
+      return d;
+    });
   });
 }
 
@@ -186,7 +195,8 @@ function loadCodes(){
       else if(usedUp) status='<span class="badge badge-yellow">已用完</span>';
       else status='<span class="badge badge-green">可用</span>';
       var expires=c.expires_at?new Date(c.expires_at).toLocaleDateString('zh-CN'):'永久';
-      return'<tr><td><span class="code-tag">'+c.code+'</span></td><td>'+(c.note||'—')+'</td><td>'+c.used_count+'/'+(c.max_uses||'∞')+'</td><td>'+expires+'</td><td>'+status+'</td><td>'+new Date(c.created_at).toLocaleDateString('zh-CN')+'</td></tr>';
+      var maxUses=Number(c.max_uses||0);
+      return'<tr><td><span class="code-tag">'+escHtml(c.code)+'</span></td><td>'+escHtml(c.note||'—')+'</td><td>'+Number(c.used_count||0)+'/'+(maxUses>0?maxUses:'∞')+'</td><td>'+expires+'</td><td>'+status+'</td><td>'+new Date(c.created_at).toLocaleDateString('zh-CN')+'</td></tr>';
     }).join('');
   }).catch(function(err){showToast('❌ '+err.message)});
 }
@@ -239,7 +249,7 @@ function loadRecords(){
       var title=r.result_json&&r.result_json.title?r.result_json.title:'(无标题)';
       var filename=r.input_filename||'文本输入';
       var time=new Date(r.created_at).toLocaleString('zh-CN');
-      return'<div class="record-item" data-id="'+r.id+'"><div class="record-title">'+escHtml(title)+'</div><div class="record-meta"><span>🎫 '+r.invitation_code+'</span><span>📄 '+escHtml(filename)+'</span><span>🕐 '+time+'</span></div></div>';
+      return'<div class="record-item" data-id="'+escHtml(r.id)+'"><div class="record-title">'+escHtml(title)+'</div><div class="record-meta"><span>🎫 '+escHtml(r.invitation_code)+'</span><span>📄 '+escHtml(filename)+'</span><span>🕐 '+time+'</span></div></div>';
     }).join('');
 
     // 绑定点击事件
@@ -277,8 +287,8 @@ function showDetail(id){
     var content=document.getElementById('detail-content');
     var title=data.result_json&&data.result_json.title?data.result_json.title:'(无标题)';
     var html='<div style="margin-bottom:12px;font-size:13px;color:#64748b">';
-    html+='<div>🎫 邀请码: <strong>'+data.invitation_code+'</strong></div>';
-    html+='<div>📄 文件: '+(data.input_filename||'文本输入')+'</div>';
+    html+='<div>🎫 邀请码: <strong>'+escHtml(data.invitation_code)+'</strong></div>';
+    html+='<div>📄 文件: '+escHtml(data.input_filename||'文本输入')+'</div>';
     html+='<div>🕐 时间: '+new Date(data.created_at).toLocaleString('zh-CN')+'</div>';
     html+='</div>';
     html+='<div style="font-size:14px;font-weight:700;margin-bottom:8px">'+escHtml(title)+'</div>';
@@ -303,7 +313,11 @@ function downloadAttachment(recordId, type){
     headers:{'Authorization':'Bearer '+adminToken}
   }).then(function(r){
     if(!r.ok){
-      return r.json().then(function(d){throw new Error(d.error||'下载失败')});
+      return r.text().then(function(text){
+        var d={};
+        if(text){try{d=JSON.parse(text)}catch(e){}}
+        throw new Error(d.error||('下载失败（HTTP '+r.status+'）'));
+      });
     }
     var disp=r.headers.get('Content-Disposition')||'';
     var filename='download';
@@ -339,7 +353,7 @@ document.getElementById('btn-clear-filter').addEventListener('click',function(){
 });
 
 function escHtml(s){
-  var d=document.createElement('div');d.textContent=s;return d.innerHTML;
+  return ReportVizSafeHtml.escapeHtml(s);
 }
 
 // === 初始化 ===
