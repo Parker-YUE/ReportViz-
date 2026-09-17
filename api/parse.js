@@ -3,9 +3,23 @@ const { requireUserToken } = require('../lib/jwt');
 const { parseFile, sha256 } = require('../lib/file-parser');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const OpenAI = require('openai');
-const { sanitizeResult } = require('../lib/result-sanitizer');
+const { waitUntil } = require('@vercel/functions');
+const {
+  assertScoredResult,
+  normalizeReportMode,
+  sanitizeResult,
+} = require('../lib/result-sanitizer');
+const { buildSystemPrompt } = require('../lib/prompt-builder');
 const { uploadInput, uploadText } = require('../lib/storage');
+const {
+  getSafeErrorDetails,
+  isTransientAIError,
+  parseModelResponse,
+  withTransientRetry,
+} = require('../lib/ai-response');
+const { validateFilePayload } = require('../lib/upload-validation');
 
 // 每个邀请码每天最多调用次数
 const DAILY_LIMIT = 30;
@@ -14,14 +28,30 @@ const DAILY_LIMIT = 30;
 const MIME = {
   pdf: 'application/pdf',
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  doc: 'application/msword',
   txt: 'text/plain',
 };
+
+const AI_TIMEOUT_MS = 90_000;
+const AI_MAX_ATTEMPTS = 2;
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
+
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  const log = (event, details = {}) => {
+    console.info(JSON.stringify({
+      scope: 'parse',
+      request_id: requestId,
+      event,
+      elapsed_ms: Date.now() - startedAt,
+      ...details,
+    }));
+  };
+  res.setHeader('X-Request-ID', requestId);
+  log('request_started');
 
   // 验证用户 token
   const auth = requireUserToken(req);
@@ -29,15 +59,46 @@ module.exports = async function handler(req, res) {
     return res.status(auth.status).json({ error: auth.error });
   }
 
+  let reportMode;
+  try {
+    reportMode = normalizeReportMode(req.body?.report_mode);
+  } catch (error) {
+    return res.status(error.status || 400).json({
+      error: error.message,
+      request_id: requestId,
+    });
+  }
+
   // 速率限制检查
   const db = getDB();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const { count } = await db
-    .from('parse_records')
-    .select('*', { count: 'exact', head: true })
-    .eq('invitation_code', auth.code)
-    .gte('created_at', today.toISOString());
+  let rateLimitResult;
+  try {
+    rateLimitResult = await db
+      .from('parse_records')
+      .select('*', { count: 'exact', head: true })
+      .eq('invitation_code', auth.code)
+      .gte('created_at', today.toISOString());
+  } catch (error) {
+    log('rate_limit_failed', { error: getSafeErrorDetails(error) });
+    return res.status(502).json({
+      error: '数据服务暂时不可用，请稍后重试',
+      request_id: requestId,
+      retryable: true,
+    });
+  }
+
+  if (rateLimitResult.error) {
+    log('rate_limit_failed', { error: getSafeErrorDetails(rateLimitResult.error) });
+    return res.status(502).json({
+      error: '数据服务暂时不可用，请稍后重试',
+      request_id: requestId,
+      retryable: true,
+    });
+  }
+
+  const count = rateLimitResult.count || 0;
 
   if (count >= DAILY_LIMIT) {
     return res.status(429).json({ error: '请求过于频繁，请明天再试' });
@@ -63,19 +124,8 @@ module.exports = async function handler(req, res) {
   const { text, file_base64, filename: fname } = req.body || {};
 
   if (file_base64 && fname) {
-    // 检查文件大小（base64 约增大 33%）
-    const sizeLimit = 10 * 1024 * 1024 * 1.34;
-    if (file_base64.length > sizeLimit) {
-      return res.status(413).json({ error: '文件超过 10MB 限制' });
-    }
-
-    const ext = fname.split('.').pop().toLowerCase();
-    if (!['pdf', 'docx', 'txt', 'doc'].includes(ext)) {
-      return res.status(400).json({ error: '仅支持 .pdf/.docx/.txt 文件' });
-    }
-
     try {
-      const buffer = Buffer.from(file_base64, 'base64');
+      const { buffer, ext } = validateFilePayload(file_base64, fname);
       const result = await parseFile(buffer, fname);
       inputText = result.text;
       textHash = result.hash;
@@ -83,9 +133,9 @@ module.exports = async function handler(req, res) {
       rawBuffer = buffer;
       rawMime = MIME[ext] || 'application/octet-stream';
     } catch (err) {
-      return res.status(400).json({ error: err.message });
+      return res.status(err.status || 400).json({ error: err.message, request_id: requestId });
     }
-  } else if (text && text.trim()) {
+  } else if (typeof text === 'string' && text.trim()) {
     inputText = text.trim();
     rawText = inputText;
     textHash = sha256(inputText);
@@ -101,50 +151,68 @@ module.exports = async function handler(req, res) {
   if (inputText.length > 15000) {
     inputText = inputText.slice(0, 15000);
   }
+  log('input_ready', { mode: rawBuffer ? 'file' : 'text', input_chars: inputText.length });
 
   // 调用 DeepSeek AI
   try {
-    const systemPrompt = loadSystemPrompt();
+    const systemPrompt = buildSystemPrompt(
+      loadSystemPrompt(),
+      reportMode,
+      loadScoredPrompt()
+    );
     const client = new OpenAI({
       apiKey: process.env.DEEPSEEK_API_KEY,
       baseURL: 'https://api.deepseek.com',
+      timeout: AI_TIMEOUT_MS,
+      maxRetries: 0,
     });
 
-    const resp = await client.chat.completions.create({
-      model: 'deepseek-v4-pro',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: '请解析以下报告，输出标准化JSON：\n\n' + inputText },
-      ],
-      temperature: 0.1,
-      max_tokens: 4000,
-    });
+    log('ai_request_started');
+    const resp = await withTransientRetry(
+      attempt => client.chat.completions.create({
+        model: 'deepseek-v4-pro',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: '请解析以下报告，输出标准化JSON：\n\n' + inputText },
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.1,
+        max_tokens: 4000,
+      }).then(response => {
+        log('ai_attempt_completed', {
+          attempt,
+          finish_reason: response.choices?.[0]?.finish_reason || null,
+          output_tokens: response.usage?.completion_tokens || null,
+        });
+        return response;
+      }),
+      {
+        maxAttempts: AI_MAX_ATTEMPTS,
+        onRetry: (error, attempt) => {
+          log('ai_attempt_retry', { attempt, error: getSafeErrorDetails(error) });
+        },
+      }
+    );
 
-    let result = resp.choices[0].message.content.trim();
+    let data = parseModelResponse(resp);
 
-    // 清理 markdown 代码块包裹
-    if (result.startsWith('```')) {
-      const parts = result.split('\n', 1);
-      if (parts.length > 1) result = result.slice(result.indexOf('\n') + 1);
-    }
-    if (result.endsWith('```')) {
-      result = result.slice(0, -3);
-    }
-    result = result.trim();
-
-    let data;
-    try {
-      data = JSON.parse(result);
-    } catch {
-      return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
-    }
-
-    if (!data.title || !data.sections) {
-      return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
+    if (!data.title || !Array.isArray(data.sections)) {
+      return res.status(502).json({
+        error: 'AI 返回的报告结构不完整，请稍后重试',
+        request_id: requestId,
+        retryable: true,
+      });
     }
 
     const previousScore = await findPreviousScore(db, textHash);
-    data = sanitizeResult(data, { inputText, filename, previousScore });
+    data = sanitizeResult(data, {
+      inputText,
+      filename,
+      previousScore,
+      reportMode,
+    });
+    data.report_mode = reportMode;
+    assertScoredResult(data, reportMode);
 
     // 存记录到数据库
     const { data: inserted, error: insertError } = await db
@@ -159,26 +227,49 @@ module.exports = async function handler(req, res) {
       .single();
 
     if (insertError) {
-      console.error('Insert record error:', insertError.message);
-      return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
-    }
-
-    // 上传原始输入到 Storage（后台异步，不阻塞响应；失败静默不阻断）
-    // 注：Vercel Hobby 10s 超时，上传改为 fire-and-forget，让响应尽快返回
-    if (rawBuffer) {
-      uploadInput(inserted.id, rawBuffer, rawMime).catch((err) => {
-        console.error('Upload input attachment error:', err.message);
-      });
-    } else if (rawText) {
-      uploadText(inserted.id, rawText).catch((err) => {
-        console.error('Upload input attachment error:', err.message);
+      log('record_insert_failed', { error: getSafeErrorDetails(insertError) });
+      return res.status(502).json({
+        error: '报告已生成，但保存失败，请稍后重试',
+        request_id: requestId,
+        retryable: true,
       });
     }
+    log('record_inserted', { record_id: inserted.id });
 
+    // 使用 Vercel 官方生命周期机制完成非关键附件上传，不阻塞响应。
+    const uploadTask = rawBuffer
+      ? uploadInput(inserted.id, rawBuffer, rawMime)
+      : (rawText ? uploadText(inserted.id, rawText) : null);
+    if (uploadTask) {
+      waitUntil(uploadTask
+        .then(() => log('input_attachment_uploaded', { record_id: inserted.id }))
+        .catch(error => log('input_attachment_failed', {
+          record_id: inserted.id,
+          error: getSafeErrorDetails(error),
+        })));
+    }
+
+    log('request_succeeded', { record_id: inserted.id });
     return res.status(200).json({ ...data, record_id: inserted.id });
   } catch (err) {
-    console.error('AI parse error:', err.message);
-    return res.status(502).json({ error: '解析服务暂时不可用，请稍后重试' });
+    if (err.code === 'INVALID_SCORED_RESULT') {
+      log('request_failed', { retryable: true, error: getSafeErrorDetails(err) });
+      return res.status(502).json({
+        error: 'AI 未生成完整的五维评分，请重新生成',
+        request_id: requestId,
+        retryable: true,
+      });
+    }
+    const retryable = isTransientAIError(err);
+    log('request_failed', { retryable, error: getSafeErrorDetails(err) });
+    const formatError = ['AI_INVALID_JSON', 'AI_EMPTY_RESPONSE', 'AI_OUTPUT_TRUNCATED'].includes(err.code);
+    return res.status(502).json({
+      error: formatError
+        ? 'AI 返回格式异常，请重新生成'
+        : 'AI 服务连接不稳定，请稍后重试',
+      request_id: requestId,
+      retryable,
+    });
   }
 };
 
@@ -187,6 +278,14 @@ function loadSystemPrompt() {
     return fs.readFileSync(path.join(__dirname, '..', 'prompts', 'system-prompt.txt'), 'utf-8');
   } catch {
     return '你是报告解析专家。将报告解析为JSON。只输出JSON。';
+  }
+}
+
+function loadScoredPrompt() {
+  try {
+    return fs.readFileSync(path.join(__dirname, '..', 'prompts', 'scored-mode.txt'), 'utf-8');
+  } catch {
+    return '';
   }
 }
 
