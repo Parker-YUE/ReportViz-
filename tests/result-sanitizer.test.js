@@ -4,6 +4,8 @@ const {
   hasTrackConcepts,
   isAiTransformReport,
   AI_TRANSFORM_DIMENSIONS,
+  normalizeReportMode,
+  assertScoredResult,
 } = require('../lib/result-sanitizer');
 
 function walkStrings(value, visitor) {
@@ -38,6 +40,50 @@ function assertContainsText(value, search) {
 }
 
 // ============ 辅助函数测试 ============
+
+const normalizeMode = normalizeReportMode || (() => undefined);
+assert.strictEqual(normalizeMode(undefined), 'standard');
+assert.strictEqual(normalizeMode('standard'), 'standard');
+assert.strictEqual(normalizeMode('scored'), 'scored');
+assert.throws(
+  () => normalizeMode('unknown'),
+  error => error && error.code === 'INVALID_REPORT_MODE' && error.status === 400
+);
+
+const validateScored = assertScoredResult || (() => undefined);
+assert.doesNotThrow(() => validateScored({ sections: [] }, 'standard'));
+assert.throws(
+  () => validateScored({ sections: [] }, 'scored'),
+  error => error && error.code === 'INVALID_SCORED_RESULT'
+);
+assert.throws(
+  () => validateScored({
+    sections: [{
+      type: 'radar_score',
+      total_score: 80,
+      dimensions: [
+        { name: '维度一', score: 80, description: '依据一' },
+        { name: '维度二', score: 81, description: '依据二' },
+        { name: '维度三', score: 82, description: '依据三' },
+        { name: '维度四', score: 83, description: '依据四' },
+      ],
+    }],
+  }, 'scored'),
+  error => error && error.code === 'INVALID_SCORED_RESULT'
+);
+assert.doesNotThrow(() => validateScored({
+  sections: [{
+    type: 'radar_score',
+    total_score: 82,
+    dimensions: [
+      { name: '维度一', score: 80, description: '依据一' },
+      { name: '维度二', score: 81, description: '依据二' },
+      { name: '维度三', score: 82, description: '依据三' },
+      { name: '维度四', score: 83, description: '依据四' },
+      { name: '维度五', score: 84, description: '依据五' },
+    ],
+  }],
+}, 'scored'));
 
 // hasTrackConcepts
 assert.strictEqual(hasTrackConcepts('这是我的职业发展方向'), true);
@@ -244,6 +290,70 @@ assert.strictEqual(radar3.dimensions[3].score, 75);
 assert.strictEqual(radar3.dimensions[4].score, 75);
 
 console.log('AI转型固定维度测试通过');
+
+// ============ 评分版优先保留原文五维 ============
+
+const sourceDimensionNames = ['市场洞察', '研究方法', '数据质量', '结论可信度', '落地价值'];
+const scoredWithSourceDimensions = sanitizeResult({
+  title: 'AI转型调研评分报告',
+  sections: [
+    {
+      type: 'radar_score',
+      title: '调研质量评估',
+      total_score: 82,
+      conclusion: '五个维度均来自原始调研规则',
+      dimensions: sourceDimensionNames.map((name, index) => ({
+        name,
+        score: 78 + index,
+        description: `${name}判断依据`,
+      })),
+    },
+  ],
+}, {
+  reportMode: 'scored',
+  inputText: `这是AI转型调研报告。原文件五维规则：${sourceDimensionNames.join('、')}。`,
+});
+
+const scoredSourceRadar = scoredWithSourceDimensions.sections.find(s => s.type === 'radar_score');
+assert.deepStrictEqual(
+  scoredSourceRadar.dimensions.map(d => d.name),
+  sourceDimensionNames,
+  '评分版应优先保留原文明确给出的五个维度'
+);
+
+console.log('评分版原文五维优先测试通过');
+
+// ============ 评分版保留原文部分维度并允许 AI 补足 ============
+
+const supplementedDimensionNames = ['研究深度', '样本质量', '洞察清晰度', '结论可信度', '决策价值'];
+const scoredWithPartialSourceDimensions = sanitizeResult({
+  title: 'AI转型调研评分报告',
+  sections: [
+    {
+      type: 'radar_score',
+      title: '调研价值评估',
+      total_score: 80,
+      conclusion: '保留原文两维并补足三维',
+      dimensions: supplementedDimensionNames.map((name, index) => ({
+        name,
+        score: 76 + index,
+        description: `${name}判断依据`,
+      })),
+    },
+  ],
+}, {
+  reportMode: 'scored',
+  inputText: '这是AI转型调研报告。原文件明确要求评估研究深度和样本质量，其余维度根据全文补充。',
+});
+
+const partialSourceRadar = scoredWithPartialSourceDimensions.sections.find(s => s.type === 'radar_score');
+assert.deepStrictEqual(
+  partialSourceRadar.dimensions.map(d => d.name),
+  supplementedDimensionNames,
+  '评分版应保留原文已有维度，并接受 AI 根据全文补足后的五维结果'
+);
+
+console.log('评分版部分维度保留与补足测试通过');
 
 // ============ AI转型未生成 radar_score 时不影响其他 section ============
 
