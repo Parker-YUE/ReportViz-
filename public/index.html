@@ -5,12 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ReportViz - 报告转高清图片</title>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="/safe-html.js"></script>
+<script src="/report-options.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#e2e8f0;min-height:100vh}
+body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:#e2e8f0;min-height:100vh;-webkit-text-size-adjust:100%}
 .container{max-width:960px;margin:0 auto;padding:0 28px}
 .nav{padding:16px 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06)}
 .logo{font-size:20px;font-weight:900;background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;cursor:pointer}
+.nav-meta{display:flex;align-items:center;gap:14px;justify-content:flex-end;text-align:right}
+.nav-contact{font-size:12px;color:#cbd5e1;font-weight:600;white-space:nowrap}
+.nav-version{font-size:11px;color:#64748b;white-space:nowrap}
 .hero{text-align:center;padding:44px 28px 28px}
 .hero h1{font-size:34px;font-weight:900;letter-spacing:-1px;margin-bottom:8px;background:linear-gradient(180deg,#fff,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
 .hero p{font-size:14px;color:#64748b;max-width:500px;margin:0 auto;line-height:1.7}
@@ -33,6 +38,19 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
 .textarea{width:100%;min-height:200px;background:rgba(15,23,42,0.9);border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:14px;font-size:12px;color:#e2e8f0;resize:vertical;font-family:inherit;line-height:1.8}
 .textarea:focus{outline:none;border-color:rgba(96,165,250,0.3)}
 .textarea::placeholder{color:#334155}
+.report-mode{margin-top:18px}
+.report-mode-title{font-size:12px;color:#cbd5e1;font-weight:700;margin-bottom:9px}
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mode-card{display:block;border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:13px 14px;cursor:pointer;background:rgba(15,23,42,0.55);transition:border-color .2s,background .2s,transform .2s}
+.mode-card:hover{border-color:rgba(96,165,250,.35);transform:translateY(-1px)}
+.mode-card:focus-within{outline:2px solid rgba(96,165,250,.75);outline-offset:2px}
+.mode-card.active{border-color:#60a5fa;background:rgba(96,165,250,.08);box-shadow:0 0 0 1px rgba(96,165,250,.12)}
+.mode-card input{position:absolute;opacity:0;pointer-events:none}
+.mode-name{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:#e2e8f0;margin-bottom:5px}
+.mode-check{width:15px;height:15px;border:1px solid #475569;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+.mode-card.active .mode-check{border-color:#60a5fa;background:#60a5fa;box-shadow:inset 0 0 0 4px #172554}
+.mode-desc{display:block;font-size:11px;color:#64748b;line-height:1.65}
+.mode-note{display:block;font-size:10px;color:#f59e0b;line-height:1.6;margin-top:6px}
 .btn{width:100%;padding:13px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;transition:0.2s}
 .btn-primary{background:linear-gradient(135deg,#3b82f6,#7c3aed);color:#fff;margin-top:16px}
 .btn-primary:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 6px 18px rgba(59,130,246,0.2)}
@@ -79,7 +97,9 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
 .auth-input::placeholder{color:#334155;letter-spacing:0;text-transform:none;font-weight:400;font-size:13px}
 .auth-error{font-size:11px;color:#ef4444;margin-top:8px;min-height:16px}
 .auth-hint{font-size:10px;color:#475569;margin-top:16px}
-@media(max-width:768px){.hero h1{font-size:24px}.container{padding:0 14px}.card{padding:20px}.theme-grid{grid-template-columns:1fr}}
+@media(max-width:768px){.nav{padding:13px 14px;align-items:flex-start;gap:10px}.nav-meta{gap:3px;flex-direction:column;align-items:flex-end}.nav-contact{font-size:11px;white-space:normal}.nav-version{font-size:10px}.hero h1{font-size:24px}.container{padding:0 14px}.card{padding:20px}.mode-grid{grid-template-columns:1fr}.theme-grid{grid-template-columns:1fr}.preview-bar{align-items:flex-start;gap:8px}.preview-bar .acts{flex-wrap:wrap;justify-content:flex-end}}
+@media(max-width:520px){.nav{flex-wrap:wrap}.nav-meta{width:100%;align-items:flex-start;text-align:left}.auth-page{padding:18px}.auth-card{padding:28px 20px}.card{padding:16px}.preview-bar{flex-direction:column}.preview-bar .acts{width:100%}.preview-bar .btn-sm{flex:1}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}.spinner{animation-duration:1.5s}}
 </style>
 </head>
 <body>
@@ -87,7 +107,10 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
 <!-- 顶部导航 -->
 <nav class="nav">
   <div class="logo" id="logo">ReportViz</div>
-  <span style="font-size:11px;color:#64748b">v4.0 · AI 智能解析</span>
+  <div class="nav-meta">
+    <span class="nav-contact">咨询及合作｜微信：allen20255</span>
+    <span class="nav-version">v4.0 · AI 智能解析</span>
+  </div>
 </nav>
 
 <!-- 邀请码输入页 -->
@@ -123,7 +146,7 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
           <div class="dz-text">点击选择文件 或 拖拽到此处</div>
           <div class="dz-hint">.docx / .pdf / .txt · 最大 10MB</div>
         </div>
-        <input type="file" id="fi" accept=".docx,.pdf,.txt,.doc" style="display:none">
+        <input type="file" id="fi" accept=".docx,.pdf,.txt" style="display:none">
         <div class="fbadge" id="fb">
           <span>📎</span>
           <div><div class="fn" id="fn"></div><div class="fs" id="fs"></div></div>
@@ -133,12 +156,28 @@ body{background:#0a0e1a;font-family:-apple-system,BlinkMacSystemFont,"PingFang S
       <div id="pt" style="display:none">
         <textarea class="textarea" id="ti" placeholder="在此粘贴报告全文内容...&#10;&#10;AI 会自动识别报告结构（标题、评分、计划、建议等），&#10;无论什么格式都能生成美观的可视化图片。"></textarea>
       </div>
+      <div class="report-mode">
+        <div class="report-mode-title">选择报告版本</div>
+        <div class="mode-grid" id="mode-grid" role="radiogroup" aria-label="报告版本">
+          <label class="mode-card active" data-mode="standard">
+            <input type="radio" name="report-mode" value="standard" checked>
+            <span class="mode-name"><span class="mode-check"></span>普通版（默认）</span>
+            <span class="mode-desc">适合会议纪要、项目总结、复盘记录等，不强制评分。</span>
+          </label>
+          <label class="mode-card" data-mode="scored">
+            <input type="radio" name="report-mode" value="scored">
+            <span class="mode-name"><span class="mode-check"></span>五维评分版</span>
+            <span class="mode-desc">适合调研报告、人才评估、能力诊断、职业规划等需要判断和打分的文件。</span>
+            <span class="mode-note">备注：会议纪要、纯记录类文件通常不需要评分，建议选择普通版。</span>
+          </label>
+        </div>
+      </div>
       <button class="btn btn-primary" id="btn-go" disabled>✨ AI 智能生成</button>
     </div>
     <div class="loading" id="loading">
       <div class="spinner"></div>
       <div class="load-steps">
-        <div class="ls" id="s1">○ 上传并解析文件</div>
+        <div class="ls" id="s1">○ 文件安全上传</div>
         <div class="ls" id="s2">○ AI 智能分析报告</div>
         <div class="ls" id="s3">○ 生成可视化模板</div>
         <div class="ls" id="s4">○ 准备预览</div>
@@ -233,8 +272,11 @@ function doAuth(){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({code:code})
   }).then(function(r){
-    return r.json().then(function(d){
-      if(!r.ok) throw new Error(d.error||'验证失败');
+    return r.text().then(function(text){
+      var d={};
+      if(text){try{d=JSON.parse(text)}catch(e){}}
+      if(!r.ok) throw new Error(d.error||('验证失败（HTTP '+r.status+'）'));
+      if(!text)throw new Error('服务器返回了空响应');
       return d;
     });
   }).then(function(data){
@@ -286,9 +328,7 @@ fiEl.addEventListener('change',function(){if(fiEl.files&&fiEl.files[0])setFile(f
 document.getElementById('rm-btn').addEventListener('click',clearFile);
 
 function setFile(f){
-  var ext=f.name.split('.').pop().toLowerCase();
-  if(['docx','pdf','txt','doc'].indexOf(ext)===-1){showToast('❌ 不支持的格式');return}
-  if(f.size>10*1024*1024){showToast('❌ 超过 10MB');return}
+  try{ReportVizOptions.buildUploadMetadata(f)}catch(err){showToast('❌ '+err.message);return}
   file=f;parsed=null;
   fbEl.classList.add('show');
   document.getElementById('fn').textContent=f.name;
@@ -308,6 +348,19 @@ function checkReady(){
   btnGo.disabled=isFile?!file:tiEl.value.trim().length<30;
 }
 
+// === 报告版本 ===
+document.getElementById('mode-grid').addEventListener('change',function(e){
+  if(!e.target||e.target.name!=='report-mode')return;
+  document.querySelectorAll('.mode-card').forEach(function(card){
+    card.classList.toggle('active',card.getAttribute('data-mode')===e.target.value);
+  });
+});
+
+function getReportMode(){
+  var selected=document.querySelector('input[name="report-mode"]:checked');
+  return ReportVizOptions.normalizeReportMode(selected?selected.value:'standard');
+}
+
 // === 生成 ===
 btnGo.addEventListener('click',startGen);
 
@@ -316,66 +369,126 @@ function startGen(){
   cardUpload.style.display='none';
   themeSec.classList.remove('show');
   loadingEl.classList.add('show');
-  setStep(1,'active','◉ 上传并解析...');
+  setStep(1,'active','◉ 准备安全上传...');
   setStep(2,'','○ AI 智能分析');
   setStep(3,'','○ 生成模板');
   setStep(4,'','○ 准备预览');
 
   var isFile=document.querySelector('.tab.active').getAttribute('data-tab')==='file';
-  var body;
+  var reportMode=getReportMode();
+  var work;
 
   if(isFile&&file){
-    // 文件转 base64
-    var reader=new FileReader();
-    reader.onload=function(){
-      var base64=reader.result.split(',')[1];
-      body=JSON.stringify({file_base64:base64,filename:file.name});
-      doParse(body);
-    };
-    reader.onerror=function(){
-      showToast('❌ 文件读取失败');
-      loadingEl.classList.remove('show');
-      cardUpload.style.display='block';
-    };
-    reader.readAsDataURL(file);
+    work=issueUploadTicket(file)
+      .then(function(ticket){
+        return uploadFileToSignedUrl(file,ticket.signed_url)
+          .then(function(){return ticket.upload_ticket});
+      })
+      .then(function(uploadTicket){
+        return doParse(ReportVizOptions.buildParsePayload(reportMode,{uploadTicket:uploadTicket}));
+      });
   }else{
-    body=JSON.stringify({text:tiEl.value});
-    doParse(body);
+    setStep(1,'done','✓ 文本已准备');
+    work=doParse(ReportVizOptions.buildParsePayload(reportMode,{text:tiEl.value}));
   }
-}
 
-function doParse(body){
-  fetch('/api/parse',{
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'Authorization':'Bearer '+token
-    },
-    body:body
-  }).then(function(r){
-    setStep(1,'done','✓ 上传完成');
-    setStep(2,'active','◉ AI 分析中（约10-30秒）...');
-    return r.json().then(function(d){
-      if(!r.ok) throw new Error(d.error||'服务器错误');
-      return d;
-    });
-  }).then(function(data){
+  work.then(function(data){
     parsed=data;
     setStep(2,'done','✓ AI 分析完成');
     setStep(3,'done','✓ 模板生成');
     setStep(4,'done','✓ 就绪');
     setTimeout(showResult,300);
-  }).catch(function(err){
-    var msg=err.message;
-    if(msg.indexOf('认证')>=0||msg.indexOf('过期')>=0||msg.indexOf('邀请码')>=0){
-      showToast('❌ '+msg+'，请重新输入邀请码');
-      setTimeout(showAuth,1500);
-    }else{
-      showToast('❌ '+msg);
-    }
-    loadingEl.classList.remove('show');
-    cardUpload.style.display='block';
+  }).catch(handleGenerationError);
+}
+
+function issueUploadTicket(selectedFile){
+  var metadata=ReportVizOptions.buildUploadMetadata(selectedFile);
+  setStep(1,'active','◉ 正在创建安全上传通道...');
+  return fetchJson('/api/upload-ticket',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+token
+    },
+    body:JSON.stringify(metadata)
   });
+}
+
+function uploadFileToSignedUrl(selectedFile,signedUrl){
+  return new Promise(function(resolve,reject){
+    var metadata;
+    try{metadata=ReportVizOptions.buildUploadMetadata(selectedFile)}catch(error){reject(error);return}
+    var xhr=new XMLHttpRequest();
+    xhr.open('PUT',signedUrl,true);
+    xhr.timeout=120000;
+    xhr.setRequestHeader('x-upsert','false');
+    xhr.upload.onprogress=function(event){
+      if(!event.lengthComputable)return;
+      var percent=Math.min(100,Math.round(event.loaded/event.total*100));
+      setStep(1,'active','◉ 文件安全上传中 '+percent+'%');
+    };
+    xhr.onload=function(){
+      if(xhr.status>=200&&xhr.status<300){
+        setStep(1,'done','✓ 文件安全上传完成');
+        resolve();
+      }else{
+        reject(new Error('文件上传失败，请重新选择文件后再试'));
+      }
+    };
+    xhr.onerror=function(){reject(new Error('文件上传连接中断，请检查网络后重试'))};
+    xhr.ontimeout=function(){reject(new Error('文件上传超时，请检查网络后重试'))};
+    var body=new FormData();
+    body.append('cacheControl','3600');
+    var blob=selectedFile.type===metadata.mimeType
+      ?selectedFile
+      :selectedFile.slice(0,selectedFile.size,metadata.mimeType);
+    body.append('',blob,metadata.filename);
+    xhr.send(body);
+  });
+}
+
+function doParse(payload){
+  setStep(2,'active','◉ AI 分析中（通常10-60秒，异常会自动重试）...');
+  return fetchJson('/api/parse',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+token
+    },
+    body:JSON.stringify(payload)
+  });
+}
+
+function fetchJson(url,options){
+  return fetch(url,options).then(function(r){
+    return r.text().then(function(text){
+      var d={};
+      if(text){try{d=JSON.parse(text)}catch(e){}}
+      if(!r.ok){
+        var error=new Error(d.error||('服务器请求失败（HTTP '+r.status+'）'));
+        error.requestId=d.request_id||r.headers.get('X-Request-ID')||'';
+        throw error;
+      }
+      if(!text)throw new Error('服务器返回了空响应');
+      return d;
+    });
+  });
+}
+
+function handleGenerationError(err){
+  var msg=err.message||'生成失败，请稍后重试';
+  if(msg==='Failed to fetch'||msg.indexOf('NetworkError')>=0){
+    msg='网络连接中断，请检查网络后重新生成';
+  }
+  if(err.requestId)msg+='（请求编号: '+err.requestId+'）';
+  if(msg.indexOf('认证')>=0||msg.indexOf('过期')>=0||msg.indexOf('邀请码')>=0){
+    showToast('❌ '+msg+'，请重新输入邀请码');
+    setTimeout(showAuth,1500);
+  }else{
+    showToast('❌ '+msg);
+  }
+  loadingEl.classList.remove('show');
+  cardUpload.style.display='block';
 }
 
 function showResult(){
@@ -440,8 +553,12 @@ function downloadPNG(){
         overlayEl.classList.remove('show');
         showToast('✅ 已下载（'+canvas.width+'x'+canvas.height+'px）');
 
-        // 顺带把 PNG 上传保存到后台（失败静默，不阻断本地下载）
+        // 顺带把 PNG 上传保存到后台（失败会提示，但不阻断本地下载）
         if(parsed.record_id){
+          if(blob.size>3*1024*1024){
+            showToast('⚠️ 图片已下载，但超过3MB，未保存到后台');
+            return;
+          }
           var fr=new FileReader();
           fr.onload=function(){
             var b64=fr.result.split(',')[1];
@@ -449,7 +566,9 @@ function downloadPNG(){
               method:'POST',
               headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
               body:JSON.stringify({record_id:parsed.record_id,data_base64:b64})
-            }).catch(function(){});
+            }).then(function(r){
+              if(!r.ok)throw new Error('后台存档失败');
+            }).catch(function(){showToast('⚠️ 图片已下载，但后台存档失败')});
           };
           fr.readAsDataURL(blob);
         }
@@ -546,7 +665,7 @@ function sanitizeForRender(data){
       });
     }
   });
-  return cloned;
+  return ReportVizSafeHtml.escapeHtmlDeep(cloned);
 }
 
 function getPersonNameFromData(data){
